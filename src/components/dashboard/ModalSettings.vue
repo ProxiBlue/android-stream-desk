@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import { useUpdaterStore } from '../../stores/updater';
 import { FONT_TIER_CLASS } from '../../lib/typography';
 import type { ThemeName } from '../../lib/themes';
+import { i18n, setLocale, type SupportedLocale } from '../../i18n';
 import ModalThemeSelector from './ModalThemeSelector.vue';
 import Input from '../ui/Input.vue';
 
@@ -62,6 +64,30 @@ const emit = defineEmits<{
 const updaterStore = useUpdaterStore();
 const activeSettingsGroup = ref<SettingsGroupId>('general');
 const typographyClass = FONT_TIER_CLASS;
+
+const activeLocale = computed<SupportedLocale>({
+  get: () => i18n.global.locale.value as SupportedLocale,
+  set: (value) => setLocale(value),
+});
+
+// SHARED-MESSAGES MARKER: this file's other hardcoded strings get folded
+// into this same `messages` object (under matching `en`/`vi` keys) rather
+// than each getting their own separate useI18n() call.
+const { t } = useI18n({
+  useScope: 'local',
+  messages: {
+    en: {
+      settings: {
+        language: { label: 'Language', en: 'English', vi: 'Vietnamese' },
+      },
+    },
+    vi: {
+      settings: {
+        language: { label: 'Ngôn ngữ', en: 'Tiếng Anh', vi: 'Tiếng Việt' },
+      },
+    },
+  },
+});
 
 const settingsGroups: Array<{ id: SettingsGroupId; label: string; icon: string }> = [
   { id: 'general', label: 'General', icon: 'lucide:sliders-horizontal' },
@@ -201,6 +227,20 @@ const onSettingsScroll = (e: Event) => {
                   :active-theme="activeTheme"
                   @set-theme="emit('setTheme', $event)"
                 />
+              </div>
+
+              <!-- Language -->
+              <div class="flex flex-col gap-2.5">
+                <span class="text-[9px] font-bold uppercase tracking-wider text-slate-500"
+                  >{{ t('settings.language.label') }}</span
+                >
+                <select
+                  v-model="activeLocale"
+                  class="cyber-inset bg-brand-dark border border-brand-border text-slate-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-brand-accent transition-colors"
+                >
+                  <option value="en">{{ t('settings.language.en') }}</option>
+                  <option value="vi">{{ t('settings.language.vi') }}</option>
+                </select>
               </div>
 
               <!-- Autostart -->
