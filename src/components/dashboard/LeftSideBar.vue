@@ -1542,7 +1542,7 @@ const copyWebClientUrl = async () => {
         <!-- Action Type Tabs -->
         <template v-if="selectedButton.buttonKind !== 'monitor'">
           <div class="flex flex-col gap-2">
-            <label class="cyber-input-label">Action Type</label>
+            <label class="cyber-input-label">{{ t('keyConfig.actionType') }}</label>
             <div class="cyber-tab-group grid grid-cols-3 gap-1 p-1.5 text-[10px]">
               <button
                 v-for="tab in ['shortcut', 'media', 'app', 'command', 'link'] as ActionType[]"
@@ -1568,12 +1568,12 @@ const copyWebClientUrl = async () => {
             <!-- Shortcut -->
             <div v-if="activeTab === 'shortcut'" class="flex flex-col gap-3">
               <div class="flex flex-col gap-2">
-                <span class="text-[9px] font-bold uppercase text-slate-400">Keyboard shortcut:</span>
+                <span class="text-[9px] font-bold uppercase text-slate-400">{{ t('shortcutTab.label') }}</span>
                 <div class="relative flex items-center cyber-input-group overflow-hidden">
                   <Input
                     v-model="selectedButton.shortcutValue"
                     type="text"
-                    placeholder="No key assigned"
+                    :placeholder="t('shortcutTab.noKeyAssigned')"
                     class="border-0 bg-transparent px-3 py-1.5 shadow-none"
                     disabled
                   />
@@ -1582,22 +1582,21 @@ const copyWebClientUrl = async () => {
                     class="cyber-record-btn h-auto text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 cursor-pointer"
                     :class="isRecording ? 'cyber-record-btn--active' : ''"
                   >
-                    {{ isRecording ? 'Recording...' : 'Record' }}
+                    {{ isRecording ? t('shortcutTab.recording') : t('shortcutTab.record') }}
                   </button>
                 </div>
                 <p
                   class="text-[9px] text-fuchsia-400 font-semibold select-none leading-relaxed animate-pulse"
                   v-if="isRecording"
                 >
-                  ⚠ Press any key combination on your keyboard to record it... (Holding:
-                  {{ currentRecordingPreview }})
+                  {{ t('shortcutTab.holdingHint', { preview: currentRecordingPreview }) }}
                 </p>
               </div>
 
               <!-- Modifier toggles + manual key picker -->
               <div v-if="isRecording" class="flex flex-col gap-2 pt-2 cyber-divider">
                 <span class="text-[9px] font-bold uppercase tracking-widest text-slate-500">
-                  Or assign manually (for combinations blocked by macOS):
+                  {{ t('shortcutTab.assignManually') }}
                 </span>
                 <div class="grid grid-cols-4 gap-1.5">
                   <button
@@ -1614,7 +1613,7 @@ const copyWebClientUrl = async () => {
                     class="cyber-preset-btn text-[9px] py-1 font-bold uppercase tracking-wider"
                     :class="pendingMods.ctrl ? 'cyber-tab-active' : ''"
                   >
-                    Ctrl
+                    {{ t('shortcutTab.ctrl') }}
                   </button>
                   <button
                     type="button"
@@ -1622,7 +1621,7 @@ const copyWebClientUrl = async () => {
                     class="cyber-preset-btn text-[9px] py-1 font-bold uppercase tracking-wider"
                     :class="pendingMods.shift ? 'cyber-tab-active' : ''"
                   >
-                    Shift
+                    {{ t('shortcutTab.shift') }}
                   </button>
                   <button
                     type="button"
@@ -1637,7 +1636,7 @@ const copyWebClientUrl = async () => {
                   <Input
                     v-model="manualKey"
                     type="text"
-                    placeholder="Final key (e.g. Q, F4, Space)"
+                    :placeholder="t('shortcutTab.finalKeyPlaceholder')"
                     class="flex-1 text-[10px] py-1 px-2"
                     maxlength="10"
                   />
@@ -1653,13 +1652,13 @@ const copyWebClientUrl = async () => {
                     :disabled="!manualKey.trim()"
                     class="cyber-action-btn font-bold text-[10px] uppercase tracking-wider px-3 py-1 cursor-pointer disabled:opacity-40"
                   >
-                    Apply
+                    {{ t('shortcutTab.apply') }}
                   </button>
                 </div>
               </div>
               <div class="flex flex-col gap-1.5 pt-2 cyber-divider">
                 <span class="text-[9px] font-bold uppercase tracking-widest text-slate-500"
-                  >Quick presets:</span
+                  >{{ t('shortcutTab.quickPresets') }}</span
                 >
                 <div class="grid grid-cols-2 gap-1.5 max-h-[105px] overflow-y-auto pr-1">
                   <button
@@ -1677,18 +1676,18 @@ const copyWebClientUrl = async () => {
 
             <!-- Media -->
             <div v-else-if="activeTab === 'media'" class="flex flex-col gap-2">
-              <span class="text-[9px] font-bold uppercase text-slate-400">System command:</span>
+              <span class="text-[9px] font-bold uppercase text-slate-400">{{ t('mediaTab.systemCommand') }}</span>
               <select
                 v-model="selectedButton.mediaAction"
                 class="w-full text-xs font-semibold cyber-select px-2.5 py-2.5 cursor-pointer"
                 @change="saveButtonSettings"
               >
-                <option value="play_pause">Play/Pause</option>
-                <option value="volume_up">Volume Up (+)</option>
-                <option value="volume_down">Volume Down (-)</option>
-                <option value="mute">Mute</option>
-                <option value="next">Next Track</option>
-                <option value="prev">Previous Track</option>
+                <option value="play_pause">{{ t('mediaTab.playPause') }}</option>
+                <option value="volume_up">{{ t('mediaTab.volumeUp') }}</option>
+                <option value="volume_down">{{ t('mediaTab.volumeDown') }}</option>
+                <option value="mute">{{ t('mediaTab.mute') }}</option>
+                <option value="next">{{ t('mediaTab.nextTrack') }}</option>
+                <option value="prev">{{ t('mediaTab.prevTrack') }}</option>
               </select>
             </div>
 
@@ -1699,19 +1698,19 @@ const copyWebClientUrl = async () => {
                   <span class="text-[9px] font-bold uppercase text-slate-400">
                     {{
                       isMac
-                        ? 'macOS App Path (.app):'
-                        : '.exe path or paste a shortcut (.lnk):'
+                        ? t('appTab.macPathLabel')
+                        : t('appTab.winPathLabel')
                     }}
                   </span>
                   <button
                     type="button"
                     class="text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer p-0.5 flex items-center gap-1"
-                    title="View guide for pasting a Shortcut / Copy as path"
+                    :title="t('appTab.viewGuideTitle')"
                     @click="emit('openGuideCenter', 'shortcut')"
                   >
                     <Icon icon="lucide:help-circle" class="text-xs" />
                     <span class="text-[8.5px] uppercase tracking-wider font-semibold"
-                      >Help</span
+                      >{{ t('appTab.help') }}</span
                     >
                   </button>
                 </div>
@@ -1720,8 +1719,8 @@ const copyWebClientUrl = async () => {
                   type="text"
                   :placeholder="
                     isMac
-                      ? 'e.g. /Applications/Safari.app'
-                      : 'Paste a shortcut or C:\\path\\app.exe --args'
+                      ? t('appTab.macPlaceholder')
+                      : t('appTab.winPlaceholder')
                   "
                   @input="saveButtonSettings"
                   @paste="handleAppPathPaste"
@@ -1740,11 +1739,11 @@ const copyWebClientUrl = async () => {
                 @click="emit('openAppPicker')"
               >
                 <Icon icon="lucide:search" class="text-xs" />
-                <span>Browse installed apps...</span>
+                <span>{{ t('appTab.browseApps') }}</span>
               </button>
               <div class="flex flex-col gap-1.5 pt-2 cyber-divider">
                 <span class="text-[9px] font-bold uppercase tracking-widest text-slate-500"
-                  >Quick app select:</span
+                  >{{ t('appTab.quickAppSelect') }}</span
                 >
                 <div class="grid grid-cols-2 gap-1.5 max-h-[120px] overflow-y-auto pr-1">
                   <button
@@ -1763,7 +1762,7 @@ const copyWebClientUrl = async () => {
 
             <!-- Command -->
             <div v-else-if="activeTab === 'command'" class="flex flex-col gap-2">
-              <span class="text-[9px] font-bold uppercase text-slate-400">Shell command:</span>
+              <span class="text-[9px] font-bold uppercase text-slate-400">{{ t('commandTab.shellCommand') }}</span>
               <textarea
                 v-model="selectedButton.commandValue"
                 rows="3"
@@ -1779,22 +1778,22 @@ const copyWebClientUrl = async () => {
                   @click="emit('openGuideCenter', 'browser')"
                 >
                   <Icon icon="lucide:help-circle" class="text-xs" />
-                  <span>View example commands...</span>
+                  <span>{{ t('commandTab.viewExamples') }}</span>
                 </button>
               </div>
               <p
                 class="text-[9px] font-bold leading-relaxed text-amber-400/90 cyber-warning px-2 py-1.5"
               >
-                ⚠ The command runs with the current user's permissions — only use commands you trust. On
-                macOS/Linux via <span class="font-mono">/bin/sh -c</span>, Windows via
-                <span class="font-mono">cmd /C</span>.
+                {{ t('commandTab.warningPrefix') }}
+                <span class="font-mono">/bin/sh -c</span>{{ t('commandTab.warningMid') }}
+                <span class="font-mono">cmd /C</span>{{ t('commandTab.warningSuffix') }}
               </p>
             </div>
 
             <!-- Link -->
             <div v-else-if="activeTab === 'link'" class="flex flex-col gap-2">
               <label class="text-[9px] font-bold uppercase text-slate-400" for="link-url-input"
-                >Website URL:</label
+                >{{ t('linkTab.websiteUrl') }}</label
               >
               <Input
                 id="link-url-input"
@@ -1811,8 +1810,7 @@ const copyWebClientUrl = async () => {
                 class="text-[9px] font-bold text-green-400 flex items-center gap-1"
               >
                 <Icon icon="lucide:check-circle" class="text-xs" />
-                Opens <span class="font-mono">{{ linkUrlValidation.domain }}</span> with the default
-                browser.
+                {{ t('linkTab.opensPrefix') }} <span class="font-mono">{{ linkUrlValidation.domain }}</span> {{ t('linkTab.opensSuffix') }}
               </p>
               <div v-if="linkUrlValidation.ok" class="flex justify-end">
                 <button
@@ -1821,7 +1819,7 @@ const copyWebClientUrl = async () => {
                   @click="testOpenLink"
                 >
                   <Icon icon="lucide:external-link" class="text-xs" />
-                  <span>Test open on this machine</span>
+                  <span>{{ t('linkTab.testOpen') }}</span>
                 </button>
               </div>
               <p v-else class="text-[9px] font-bold text-red-400 flex items-center gap-1">
@@ -1829,10 +1827,9 @@ const copyWebClientUrl = async () => {
                 {{ linkUrlValidation.reason }}
               </p>
               <p class="text-[9px] font-bold leading-relaxed text-slate-500 px-2 py-1.5">
-                The URL is passed as-is to the OS command (Windows
-                <span class="font-mono">cmd /c start</span>, macOS
-                <span class="font-mono">open</span>, Linux <span class="font-mono">xdg-open</span>)
-                — no shell string concatenation.
+                {{ t('linkTab.urlPassedPrefix') }}
+                <span class="font-mono">cmd /c start</span>{{ t('linkTab.urlPassedMid1') }}
+                <span class="font-mono">open</span>{{ t('linkTab.urlPassedMid2') }} <span class="font-mono">xdg-open</span>{{ t('linkTab.urlPassedSuffix') }}
               </p>
             </div>
           </div>
@@ -1847,7 +1844,7 @@ const copyWebClientUrl = async () => {
         <span
           class="text-[10px] text-slate-500 font-bold uppercase tracking-wider max-w-[200px] leading-relaxed"
         >
-          Select a key on the preview grid to assign an action
+          {{ t('emptyState.selectKeyHint') }}
         </span>
       </div>
     </div>
