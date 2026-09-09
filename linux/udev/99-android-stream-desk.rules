@@ -1,0 +1,19 @@
+# android-stream-desk: re-establish `adb reverse` whenever a paired Android
+# device is (re)plugged over USB, so the phone reconnects to the Companion
+# without any manual step.
+#
+# Vendor-only match (not idProduct) — the same physical device presents a
+# different product ID depending on which USB mode it enumerates in
+# (MTP / PTP / adb-only), so matching on vendor is what stays stable across
+# reconnects. Add more ID_VENDOR_ID lines for other phone brands as needed;
+# see https://github.com/M0Rf30/android-udev-rules for a maintained list of
+# vendor IDs across manufacturers.
+#
+# Install: sudo cp 99-android-stream-desk.rules /etc/udev/rules.d/
+#          sudo cp ../systemd/android-stream-desk-usb-connect.service /etc/systemd/system/
+#          sudo cp ../scripts/usb-connect.sh /usr/local/bin/
+#          sudo chmod +x /usr/local/bin/usb-connect.sh
+#          sudo udevadm control --reload-rules
+
+# Samsung
+ACTION=="add", SUBSYSTEM=="usb", ENV{ID_VENDOR_ID}=="04e8", TAG+="systemd", ENV{SYSTEMD_WANTS}+="android-stream-desk-usb-connect.service"
