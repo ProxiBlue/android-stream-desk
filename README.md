@@ -1,28 +1,28 @@
-# Android Stream Desk 📱🕹️
+# Android Stream Desk 📱🕹
 
-Biến thiết bị Android cũ hoặc dư thừa của bạn thành bàn phím macro cảm ứng không dây chuyên nghiệp điều khiển trực tiếp máy tính Windows. Hoạt động hoàn toàn tự lưu trữ (self-hosted) trong mạng Wi-Fi cục bộ (LAN), không yêu cầu Internet, tuyệt đối bảo mật và có độ trễ cực thấp (<30ms).
+Turn your old or spare Android device into a professional wireless touch macro pad that controls your Windows PC directly. Runs entirely self-hosted on your local Wi-Fi network (LAN), requires no Internet connection, is fully private, and has extremely low latency (<30ms).
 
-Giải pháp thay thế mã nguồn mở tiện lợi và dung lượng cực nhẹ cho thiết bị vật lý đắt đỏ như Elgato Stream Deck.
+A convenient, ultra-lightweight open-source alternative to expensive physical devices like the Elgato Stream Deck.
 
 Buy me a coffee: https://ko-fi.com/ania9
 
 ---
 
-### 📸 Ảnh Chụp Giao Diện (Screenshots)
+### 📸 Screenshots
 
-| Giao diện Companion Dashboard | Giao diện Android/Web Client |
+| Companion Dashboard UI | Android/Web Client UI |
 | :---: | :---: |
 | ![Companion Dashboard](public/screenshots/companion-macos.png) | ![Client Layout Grid](public/screenshots/client-view.png) |
-| **Cấu hình Cài đặt (Companion)** | **Cài đặt & Xoay màn hình (Client)** |
+| **Settings Configuration (Companion)** | **Settings & Screen Rotation (Client)** |
 | ![Companion Settings](public/screenshots/companion-settings.png) | ![Client Settings](public/screenshots/client-settings.png) |
-| **Đồng bộ Theme Genshin (Companion)** | **Đồng bộ Theme Genshin (Client)** |
+| **Genshin Theme Sync (Companion)** | **Genshin Theme Sync (Client)** |
 | ![Companion Theme Genshin](public/screenshots/companion-theme-genshin-01.png) | ![Client Theme Genshin](public/screenshots/client-theme-genshin-01.png) |
 
 ---
 
-## 🛠️ Kiến trúc Hệ thống
+## 🛠 System Architecture
 
-Hệ thống được phát triển cùng trên **một codebase** bằng công nghệ **Tauri v2** giúp tối thiểu hóa tài nguyên CPU/RAM sử dụng, bao gồm 2 thành phần chính:
+The system is developed on **a single codebase** using **Tauri v2**, which keeps CPU/RAM usage to a minimum, and consists of 2 main components:
 
 ```mermaid
 flowchart LR
@@ -44,200 +44,200 @@ flowchart LR
 ```
 
 1. **Windows Companion (Server)**:
-   - Viết bằng Tauri v2 (Backend Rust & Frontend Vue 3 + Tailwind CSS v3).
-   - Thiết lập một WebSocket Server chạy ngầm dựa trên Tokio runtime lắng nghe cổng `8089`.
-   - Giả lập hệ thống sử dụng thư viện `enigo` (phiên bản bảo mật đa luồng động động) thực thi gõ phím trực tiếp trên OS.
-   - Khởi chạy tệp phần mềm `.exe` trực tiếp và điều chỉnh mức âm lượng hoặc nút đa phương tiện (Media play/pause/prev/next).
-   - Quản lý và lưu trữ cấu hình mạng lưới lưới nút tại AppData.
+   - Built with Tauri v2 (Rust backend & Vue 3 + Tailwind CSS v3 frontend).
+   - Runs a background WebSocket server on the Tokio runtime, listening on port `8089`.
+   - Simulates input using the `enigo` library (a thread-safe variant) to type keystrokes directly on the OS.
+   - Launches `.exe` program files directly and adjusts volume or media keys (play/pause/prev/next).
+   - Manages and stores the button grid configuration in AppData.
 
 2. **Android App (Client)**:
-   - Chạy trực tiếp trên máy tính bảng/điện thoại di động Android thông qua Tauri mobile engine.
-   - Kết nối tới WebSocket Server máy tính qua địa chỉ IP và Port.
-   - Nhận diện bản đồ lưới động (CSS Grid co giãn từ 2x2 đến 6x8) và render giao diện tức thì theo cấu hình trên máy tính.
-   - Gửi yêu cầu trigger macro ngược về máy tính khi chạm nút bất kỳ.
+   - Runs directly on an Android tablet/phone via the Tauri mobile engine.
+   - Connects to the PC's WebSocket server via IP address and port.
+   - Reads the dynamic grid layout (a CSS Grid that scales from 2x2 to 6x8) and renders the UI instantly to match the PC's configuration.
+   - Sends a macro-trigger request back to the PC whenever any button is tapped.
 
 ---
 
-## ✨ Tính năng nổi bật của MVP
+## ✨ Key MVP Features
 
-- **Local Network WebSockets**: Kết nối trực tiếp qua LAN, không đi qua cloud. Có heartbeat (Ping/Pong 5s) và cơ chế tự động thử kết nối lại cực nhạy mỗi 3 giây.
-- **Bàn phím Lưới Động (CSS Grid)**: Thay đổi hàng và cột động từ Dashboard máy tính, đồng bộ hóa trực tiếp (Live Sync) sang điện thoại ngay tức thì.
-- **Giả lập Phím Tắt Hệ Thống**: Hỗ trợ giả lập phím đơn, phím bấm đặc biệt và các tổ hợp tiện ích nâng cao như `Ctrl+Shift+Tab`, `Alt+F4`, `Ctrl+S`, v.v.
-- **Bộ Laucher Phần Mềm Nhanh**: Khởi chạy trực tiếp các tệp tin executable `.exe` thông qua đặc quyền User thuần của Windows mà không bị UAC chặn.
-- **Bàn Biên Tập Tiện Lợi**: Giao diện Dashboard tùy chọn màu sắc nền của nút, emoji đại diện trực quan cấu hình nhãn chữ nhanh chóng.
+- **Local Network WebSockets**: Connects directly over LAN, with no cloud involved. Includes a heartbeat (Ping/Pong every 5s) and a highly responsive auto-reconnect mechanism every 3 seconds.
+- **Dynamic Grid Keypad (CSS Grid)**: Change rows and columns dynamically from the PC Dashboard, with instant Live Sync to the phone.
+- **System Shortcut Simulation**: Supports simulating single keys, special keys, and advanced key combinations such as `Ctrl+Shift+Tab`, `Alt+F4`, `Ctrl+S`, etc.
+- **Quick App Launcher**: Launches `.exe` executable files directly using plain Windows user privileges, without being blocked by UAC.
+- **Convenient Editing Board**: The Dashboard UI lets you pick button background colors, representative emoji, and quickly configure text labels.
 
 ---
 
-## 📂 Sơ đồ Thư mục Mã nguồn
+## 📂 Source Folder Structure
 
 ```text
 android-stream-desk/
 ├── src-tauri/
-│   ├── Cargo.toml            # Dependencies Rust (tungstenite, enigo, serde_json)
-│   ├── tauri.conf.json       # Phân quyền cửa sổ desktop + mobile & plugin updater
+│   ├── Cargo.toml            # Rust dependencies (tungstenite, enigo, serde_json)
+│   ├── tauri.conf.json       # Desktop + mobile window permissions & updater plugin
 │   ├── capabilities/
-│   │   └── default.json      # ACL cấu hình cho phép shell execute & updater
+│   │   └── default.json      # ACL config allowing shell execute & updater
 │   └── src/
 │       ├── main.rs           # Launcher entry-point
-│       ├── lib.rs            # Rust commands giả lập phím, media, launcher & load/save JSON
-│       └── websocket.rs      # Module WebSocket Server Tokio port 8089 & heartbeat
+│       ├── lib.rs            # Rust commands for key/media simulation, app launcher & load/save JSON
+│       └── websocket.rs      # Tokio WebSocket server module, port 8089 & heartbeat
 ├── src/
 │   ├── assets/
-│   │   └── tailwind.css      # Cấu hình Tailwind CSS tuỳ biến toàn cục
+│   │   └── tailwind.css      # Global custom Tailwind CSS config
 │   ├── components/
-│   │   ├── ConnectionStatus.vue # Biểu diễn trạng thái kết nối & IP input
-│   │   ├── GridArea.vue      # Lưới nút co giãn CSS Grid động theo hàng/cột
+│   │   ├── ConnectionStatus.vue # Displays connection status & IP input
+│   │   ├── GridArea.vue      # Dynamic CSS Grid button layout by rows/cols
 │   │   └── GridButton.vue    # Macro button (emoji, label, background)
 │   ├── stores/
-│   │   ├── connection.ts     # Quản lý WebSocket client kết nối & auto-reconnect
-│   │   └── layout.ts         # Pinia quản lý lưu trữ, sửa đổi và sync layout
+│   │   ├── connection.ts     # Manages WebSocket client connection & auto-reconnect
+│   │   └── layout.ts         # Pinia store for layout persistence, editing & sync
 │   ├── views/
-│   │   ├── ClientView.vue    # Giao diện chính tương tác trên di động Android
-│   │   └── DashboardView.vue # Giao diện biên tập lưới chỉnh sửa trên Windows
-│   ├── main.ts               # Setup router & Pinia boostrap
+│   │   ├── ClientView.vue    # Main interactive UI on Android mobile
+│   │   └── DashboardView.vue # Grid editing UI on Windows
+│   ├── main.ts               # Setup router & Pinia bootstrap
 │   └── App.vue               # Switch layout router
-├── package.json              # Khai báo pnpm dependencies
-└── tailwind.config.ts        # Setup CSS theme mở rộng
+├── package.json              # Declares pnpm dependencies
+└── tailwind.config.ts        # Extended CSS theme setup
 ```
 
 ---
 
-## 📥 Tải về & Cài đặt nhanh
+## 📥 Download & Quick Install
 
-> Không cần tự build — tải thẳng bản dựng sẵn từ [**GitHub Releases**](https://github.com/aniadev/android-stream-desk/releases/latest).
+> No need to build it yourself — download a prebuilt release directly from [**GitHub Releases**](https://github.com/aniadev/android-stream-desk/releases/latest).
 
-### Windows Companion (máy tính)
+### Windows Companion (PC)
 
-1. Vào trang [Releases](https://github.com/aniadev/android-stream-desk/releases) → chọn phiên bản mới nhất.
-2. Trong mục **Assets**, tải file:
-   - `.msi` — khuyến nghị, trình cài đặt Windows Installer.
-   - `_x64-setup.exe` — NSIS installer (nếu không dùng được `.msi`).
-3. Chạy file vừa tải, làm theo hướng dẫn cài đặt.
-4. Khởi động **Android Stream Desk** — ứng dụng chạy ngầm trong System Tray.
+1. Go to the [Releases](https://github.com/aniadev/android-stream-desk/releases) page → pick the latest version.
+2. Under **Assets**, download the file:
+   - `.msi` — recommended, Windows Installer package.
+   - `_x64-setup.exe` — NSIS installer (if you can't use the `.msi`).
+3. Run the downloaded file and follow the install prompts.
+4. Launch **Android Stream Desk** — the app runs in the background in the System Tray.
 
-> **Lưu ý tag**: Releases có suffix `-win` (vd: `v1.3.2-win`) chỉ chứa file Windows, không có APK.
+> **Tag note**: Releases with a `-win` suffix (e.g. `v1.3.2-win`) contain only Windows files, no APK.
 
-### macOS Companion (máy tính)
+### macOS Companion (PC)
 
-Do bản phát hành macOS là **chưa đăng ký bản quyền Apple (unsigned)**, vui lòng làm theo các bước sau để khởi chạy:
+Since the macOS release is **unsigned (not notarized by Apple)**, follow these steps to launch it:
 
-1. Vào trang [Releases](https://github.com/aniadev/android-stream-desk/releases) tải file `.dmg` mới nhất.
-2. Mở file `.dmg` và kéo ứng dụng vào thư mục `Applications`.
-3. Nhấp đúp mở ứng dụng. Hệ thống (Gatekeeper) sẽ hiển thị thông báo chặn app từ nhà phát triển không xác định.
-4. **Vượt Gatekeeper**:
-   - Truy cập **System Settings → Privacy & Security**, kéo xuống dưới cùng tìm mục app bị chặn và chọn **Open Anyway** (Vẫn mở).
-   - *Cách 2 (qua Terminal)*: Chạy lệnh sau rồi mở lại app bình thường:
+1. Go to the [Releases](https://github.com/aniadev/android-stream-desk/releases) page and download the latest `.dmg` file.
+2. Open the `.dmg` file and drag the app into the `Applications` folder.
+3. Double-click to open the app. The system (Gatekeeper) will show a warning blocking the app from an unidentified developer.
+4. **Bypass Gatekeeper**:
+   - Go to **System Settings → Privacy & Security**, scroll to the bottom, find the blocked app entry, and choose **Open Anyway**.
+   - *Option 2 (via Terminal)*: Run the following command, then open the app normally:
      ```bash
      xattr -dr com.apple.quarantine "/Applications/Android Stream Desk.app"
      ```
-5. **Cấp quyền phím macro**: Đi tới **System Settings → Privacy & Security → Accessibility**, tích chọn bật cho phép **Android Stream Desk** phát tín hiệu click mô phỏng phím hệ thống.
+5. **Grant macro key permission**: Go to **System Settings → Privacy & Security → Accessibility**, and enable **Android Stream Desk** so it can send simulated system key/click signals.
 
-> **Lưu ý tag**: Releases có suffix `-mac` (vd: `v1.4.0-mac`) chỉ chứa bản build macOS.
+> **Tag note**: Releases with a `-mac` suffix (e.g. `v1.4.0-mac`) contain only the macOS build.
 
-### Linux Companion (máy tính)
+### Linux Companion (PC)
 
-Ứng dụng hỗ trợ chạy trực tiếp thông qua tệp gói `.deb` hoặc đóng gói di động `.AppImage`.
+The app supports running directly via a `.deb` package or a portable `.AppImage`.
 
-1. Vào trang [Releases](https://github.com/aniadev/android-stream-desk/releases) tải tệp `.deb` hoặc `.AppImage`.
-2. **Cài đặt tệp `.deb`**:
+1. Go to the [Releases](https://github.com/aniadev/android-stream-desk/releases) page and download the `.deb` or `.AppImage` file.
+2. **Installing the `.deb` file**:
    ```bash
-   sudo dpkg -i <ten_file>.deb
-   sudo apt-get install -f # Tự động vá các gói dependency bị thiếu (nếu có)
+   sudo dpkg -i <file_name>.deb
+   sudo apt-get install -f # Automatically fixes missing dependency packages (if any)
    ```
-3. **Chạy tệp `.AppImage`**:
+3. **Running the `.AppImage` file**:
    ```bash
-   chmod +x <ten_file>.AppImage
-   ./<ten_file>.AppImage
+   chmod +x <file_name>.AppImage
+   ./<file_name>.AppImage
    ```
-4. **Các thư viện hệ thống cần thiết (Runtime dependencies)**:
-   Gói chạy yêu cầu các thư viện hệ thống tối thiểu:
+4. **Required system libraries (Runtime dependencies)**:
+   The build requires at minimum these system libraries:
    `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `libxdo-dev`, `libappindicator3-dev`, `librsvg2-dev`.
 
-> **Lưu ý về Wayland (Caveat)**: Thư viện giả lập phím thô `enigo` hoạt động hiệu quả nhất trên kiến trúc đồ họa Windowing **X11**. Trên môi trường **Wayland thuần**, các thao tác nhấn giữ phím nóng hệ thống có thể bị hạn chế. Khuyến nghị chuyển phiên đăng nhập OS sang chế độ **X11** để đạt hiệu năng giả lập phím tốt nhất.
+> **Wayland Caveat**: The low-level `enigo` key-simulation library works best on the **X11** windowing architecture. On a **pure Wayland** session, simulated system hotkey presses may be restricted. It's recommended to switch your OS login session to **X11** for the best key-simulation performance.
 
-> **Lưu ý tag**: Releases có suffix `-linux` (vd: `v1.4.0-linux`) chỉ chứa bản build Linux.
+> **Tag note**: Releases with a `-linux` suffix (e.g. `v1.4.0-linux`) contain only the Linux build.
 
-### Android Client (điện thoại / máy tính bảng)
+### Android Client (phone / tablet)
 
-1. Vào trang [Releases](https://github.com/aniadev/android-stream-desk/releases) → chọn phiên bản mới nhất.
-2. Từ v1.5.1, APK được **tách riêng theo kiến trúc CPU (ABI)** để mỗi file nhẹ hơn nhiều so với bản universal cũ (~33MB thay vì ~131MB). Trong mục **Assets**, chọn đúng file cho máy:
-   - `android-stream-desk-vX.Y.Z-arm64.apk` — **arm64-v8a (64-bit)**. Chọn file này cho hầu hết điện thoại đời 2015 trở lại đây.
-   - `android-stream-desk-vX.Y.Z-arm.apk` — **armeabi-v7a (32-bit)**. Chỉ dành cho máy cũ/giá rẻ chạy chip 32-bit.
-   - Suffix `-unsigned` (vd: `...-arm64-unsigned.apk`) là bản chưa ký (fallback khi release không có keystore).
-3. Trên điện thoại: **Cài đặt** → **Bảo mật** → bật **Nguồn không xác định** (hoặc cho phép khi được hỏi).
-4. Mở file APK vừa tải để cài đặt.
+1. Go to the [Releases](https://github.com/aniadev/android-stream-desk/releases) page → pick the latest version.
+2. Since v1.5.1, the APK is **split by CPU architecture (ABI)** so each file is much smaller than the old universal build (~33MB instead of ~131MB). Under **Assets**, pick the right file for your device:
+   - `android-stream-desk-vX.Y.Z-arm64.apk` — **arm64-v8a (64-bit)**. Choose this for most phones from 2015 onward.
+   - `android-stream-desk-vX.Y.Z-arm.apk` — **armeabi-v7a (32-bit)**. For older/budget devices running a 32-bit chip only.
+   - The `-unsigned` suffix (e.g. `...-arm64-unsigned.apk`) is an unsigned build (a fallback for when a release has no keystore).
+3. On your phone: **Settings** → **Security** → enable **Unknown sources** (or allow it when prompted).
+4. Open the downloaded APK file to install it.
 
-#### Chọn ABI nào cho máy của bạn?
+#### Which ABI do I need?
 
-> **Quy tắc nhanh**: gần như mọi máy hiện nay đều dùng **`-arm64`**. Chỉ tải `-arm` nếu máy quá cũ hoặc đã thử `-arm64` báo không cài được.
+> **Quick rule**: almost every device today uses **`-arm64`**. Only download `-arm` if your device is very old, or if `-arm64` reported it couldn't install.
 
-| ABI | File | Dòng máy ví dụ |
+| ABI | File | Example devices |
 | :--- | :--- | :--- |
-| `arm64-v8a` (64-bit) | `-arm64.apk` | Samsung Galaxy S8/S10/S20/S21/S23/S24, A52/A54; Xiaomi Redmi Note 8/9/10/11/12, POCO; Google Pixel (tất cả); OPPO/Realme/Vivo đời mới; OnePlus; Galaxy Tab S6/S7/S8/S9 |
-| `armeabi-v7a` (32-bit) | `-arm.apk` | Samsung Galaxy S4/S5, J1/J2/Grand Prime; máy Android Go giá rẻ rất cũ; tablet đời 2014 trở về trước |
+| `arm64-v8a` (64-bit) | `-arm64.apk` | Samsung Galaxy S8/S10/S20/S21/S23/S24, A52/A54; Xiaomi Redmi Note 8/9/10/11/12, POCO; Google Pixel (all models); newer OPPO/Realme/Vivo; OnePlus; Galaxy Tab S6/S7/S8/S9 |
+| `armeabi-v7a` (32-bit) | `-arm.apk` | Samsung Galaxy S4/S5, J1/J2/Grand Prime; very old budget Android Go devices; tablets from 2014 or earlier |
 
-> Không chắc máy 32-bit hay 64-bit? Cài app **CPU-Z** (hoặc xem **Cài đặt → Giới thiệu điện thoại**) để kiểm tra; hoặc cứ thử `-arm64` trước — nếu hệ thống báo "ứng dụng không tương thích" thì mới chuyển sang `-arm`.
+> Not sure if your device is 32-bit or 64-bit? Install the **CPU-Z** app (or check **Settings → About phone**) to find out; or just try `-arm64` first — only switch to `-arm` if the system reports "app not compatible".
 
-> **Lưu ý tag**: Releases có suffix `-apk` (vd: `v1.3.2-apk`) chỉ chứa APK, không có file Windows.
+> **Tag note**: Releases with an `-apk` suffix (e.g. `v1.3.2-apk`) contain only the APK, no Windows files.
 
 ---
 
-## 🚀 Hướng dẫn Thiết lập và Cài đặt
+## 🚀 Setup & Installation Guide
 
-### Yêu cầu tiên quyết
-- **Node.js**: Phiên bản 18+ kèm trình quản lý gói `pnpm`.
-- **Rust**: Cài đặt Rustup (Hỗ trợ cargo check và target compilation).
-- **Windows Build Tools**: Cài đặt Visual Studio C++ Build Tools (phục vụ đóng gói Tauri desktop).
-- **Android SDK & NDK**: Thiết lập thông qua Android Studio (phục vụ đóng gói sang file `.apk`).
+### Prerequisites
+- **Node.js**: Version 18+ with the `pnpm` package manager.
+- **Rust**: Install via Rustup (supports cargo check and target compilation).
+- **Windows Build Tools**: Install the Visual Studio C++ Build Tools (needed to package the Tauri desktop app).
+- **Android SDK & NDK**: Set up via Android Studio (needed to package the `.apk` file).
 
-### 1. Khởi chạy Chế độ Phát triển (Dev Mode)
+### 1. Running Dev Mode
 
-Tải toàn bộ dependencies và chạy ứng dụng máy chủ Companion Windows:
+Install all dependencies and run the Windows Companion server app:
 ```bash
-# 1. Cài đặt Node modules frontend
+# 1. Install frontend Node modules
 pnpm install
 
-# 2. Khởi chạy Windows Companion server ở chế độ debug
+# 2. Launch the Windows Companion server in debug mode
 pnpm tauri dev
 ```
-> Dashboad tùy biến sẽ hiển thị tại `http://localhost:1420/dashboard` hoặc trên cửa sổ Desktop mới mở. Giao diện Client di động thử nghiệm tương thích tại `http://localhost:1420/`.
+> The custom Dashboard will show at `http://localhost:1420/dashboard` or in the newly opened Desktop window. The mobile Client UI can be tested at `http://localhost:1420/`.
 
-### 2. Biên dịch và Đóng gói (Build Production)
+### 2. Building & Packaging (Production Build)
 
-**Đóng gói Installer Windows (`.msi` / `.exe`)**:
+**Packaging the Windows Installer (`.msi` / `.exe`)**:
 ```bash
 pnpm tauri build
 ```
-Bộ cài đặt MSI kích thước nhỏ gọn (<10MB) kế thừa từ tối ưu hóa Rust sẽ được sinh ra tại `src-tauri/target/release/bundle/msi/`.
+A compact MSI installer (<10MB), thanks to Rust's optimizations, will be generated at `src-tauri/target/release/bundle/msi/`.
 
-**Đóng gói Cài đặt Android (`.apk`)**:
+**Packaging the Android Install (`.apk`)**:
 ```bash
 pnpm android:build
 ```
-Lệnh này tách APK theo từng ABI và chỉ build cho điện thoại thật (`arm64-v8a` + `armeabi-v7a`, bỏ `x86`/`x86_64` chỉ dùng cho emulator). File ra tại:
+This command splits the APK by ABI and only builds for real devices (`arm64-v8a` + `armeabi-v7a`, skipping `x86`/`x86_64`, which are emulator-only). Output files land at:
 ```text
 src-tauri/gen/android/app/build/outputs/apk/arm64/release/android-stream-desk-vX.Y.Z-arm64.apk   # arm64-v8a
 src-tauri/gen/android/app/build/outputs/apk/arm/release/android-stream-desk-vX.Y.Z-arm.apk       # armeabi-v7a
 ```
 
-Build riêng một ABI cho nhanh (khuyến nghị khi test, đa số máy đời mới dùng arm64):
+Build a single ABI for speed (recommended when testing, since most newer devices use arm64):
 ```bash
-pnpm android:build:arm64    # chỉ arm64-v8a
+pnpm android:build:arm64    # arm64-v8a only
 ```
 
-Tự chọn target thủ công nếu cần ABI khác (tên target ngắn theo `tauri android build`: `aarch64`, `armv7`, `i686`, `x86_64`):
+Manually pick a target if you need a different ABI (short target names per `tauri android build`: `aarch64`, `armv7`, `i686`, `x86_64`):
 ```bash
 pnpm tauri android build --apk --split-per-abi \
   --target aarch64 \      # arm64-v8a (64-bit)
   --target armv7          # armeabi-v7a (32-bit)
 ```
 
-> **Vì sao tách ABI?** Bản universal cũ gói cả 4 ABI vào một APK ~131MB vì frontend bị nhúng vào mỗi `.so` per-ABI. Tách theo ABI và bỏ x86/x86_64 đưa mỗi APK về ~33MB; chỉ tải đúng file cho máy mình.
+> **Why split by ABI?** The old universal build packed all 4 ABIs into a single ~131MB APK because the frontend was embedded into every per-ABI `.so`. Splitting by ABI and dropping x86/x86_64 brings each APK down to ~33MB — just download the right file for your device.
 
 ---
 
-## 🔒 Quy chuẩn Thiết kế Phi chức năng (NFR)
+## 🔒 Non-Functional Requirements (NFR)
 
-- **Local Network Isolation**: Ứng dụng **không** gọi bất cứ API nào ra Internet. Mọi giao dịch thông suốt bên trong mạng LAN qua port `8089`.
-- **Độ trễ truyền tin lý tưởng**: Độ trễ gửi action từ điện thoại Android và thao tác click phím trên hệ điều hành Windows Companion đạt trung bình từ `15ms` đến `30ms` (qua kết nối mạng chuẩn 5GHz).
-- **Hardened Enigo Logic**: Cơ chế tự động giải phóng các phím chức năng Modifier (`Ctrl`, `Alt`, `Shift`, `Win`) sau khi bấm được triển khai chặt chẽ, loại bỏ hoàn toàn khả năng bị kẹt phím nóng hệ thống sau khi click.
+- **Local Network Isolation**: The app makes **no** calls to any Internet API. All traffic stays entirely within the LAN over port `8089`.
+- **Ideal Transmission Latency**: The latency from sending an action on the Android phone to the keystroke click on the Windows Companion OS averages `15ms` to `30ms` (over a standard 5GHz network connection).
+- **Hardened Enigo Logic**: A strict auto-release mechanism for Modifier keys (`Ctrl`, `Alt`, `Shift`, `Win`) after each press is implemented, completely eliminating the possibility of a stuck system hotkey after a click.

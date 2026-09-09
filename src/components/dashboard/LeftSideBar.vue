@@ -176,13 +176,13 @@ const duplicateSelected = () => {
   if (ok) {
     layoutStore.lastToast = {
       kind: 'info',
-      message: 'Đã nhân bản phím sang ô trống đầu tiên!',
+      message: 'Duplicated key to the first empty slot!',
       at: Date.now(),
     };
   } else {
     layoutStore.lastToast = {
       kind: 'error',
-      message: 'Không còn ô trống trên trang này để nhân bản.',
+      message: 'No empty slots left on this page to duplicate into.',
       at: Date.now(),
     };
   }
@@ -277,7 +277,7 @@ const handleCustomIconUpload = (e: Event) => {
   if (!file.type.startsWith('image/')) {
     layoutStore.lastToast = {
       kind: 'error',
-      message: 'Vui lòng chọn tệp ảnh PNG hoặc JPG!',
+      message: 'Please select a PNG or JPG image file!',
       at: Date.now(),
     };
     return;
@@ -309,7 +309,7 @@ const handleCustomIconUpload = (e: Event) => {
         if (dataURL.length > 28057) {
           layoutStore.lastToast = {
             kind: 'info',
-            message: 'Ảnh đã được nén nhưng vượt 20KB. Payload tải có thể phình to.',
+            message: 'The image was compressed but still exceeds 20KB. The upload payload may be bloated.',
             at: Date.now(),
           };
         }
@@ -351,7 +351,7 @@ const buildModifiers = (e?: KeyboardEvent): string[] => {
 const currentRecordingPreview = computed(() => {
   const modifiers = buildModifiers();
   const bases = Array.from(heldKeys.value);
-  if (modifiers.length === 0 && bases.length === 0) return 'Đang chờ phím...';
+  if (modifiers.length === 0 && bases.length === 0) return 'Waiting for keys...';
   return [...modifiers, ...bases].join(' + ');
 });
 
@@ -576,9 +576,9 @@ const handleAppPathPaste = async (e: ClipboardEvent) => {
       const resolved = await invoke<string>('resolve_shortcut', { lnkPath: text });
       selectedButton.value.appPath = resolved;
       saveButtonSettings();
-      appPathHint.value = '✓ Đã giải shortcut';
+      appPathHint.value = '✓ Shortcut resolved';
     } catch {
-      appPathHint.value = '✗ Không đọc được shortcut';
+      appPathHint.value = '✗ Could not read shortcut';
     }
     setTimeout(() => (appPathHint.value = ''), 3000);
     return;
@@ -611,13 +611,13 @@ const handleAppPathPaste = async (e: ClipboardEvent) => {
           selectedButton.value.appPath = file;
         }
         saveButtonSettings();
-        appPathHint.value = '✓ Đã dán shortcut copy thành công';
+        appPathHint.value = '✓ Pasted shortcut successfully';
       } else {
-        appPathHint.value = '✗ Không có gì để dán. Hãy chọn App Picker!';
+        appPathHint.value = '✗ Nothing to paste. Please use App Picker!';
       }
     } catch (err: any) {
       console.warn('Clipboard file read error:', err);
-      appPathHint.value = '✗ Không đọc được Clipboard. Hãy dùng App Picker!';
+      appPathHint.value = '✗ Could not read clipboard. Please use App Picker!';
     }
     setTimeout(() => (appPathHint.value = ''), 4000);
   }
@@ -626,21 +626,21 @@ const handleAppPathPaste = async (e: ClipboardEvent) => {
 // --- Link URL Validation ---
 const validateLinkUrl = (raw: string | undefined | null): LinkUrlValidation => {
   const trimmed = (raw ?? '').trim();
-  if (!trimmed) return { ok: false, reason: 'Nhập URL bắt đầu bằng http:// hoặc https://' };
+  if (!trimmed) return { ok: false, reason: 'Enter a URL starting with http:// or https://' };
   try {
     const parsed = new URL(trimmed);
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return { ok: false, reason: 'Chỉ chấp nhận http:// hoặc https://' };
+      return { ok: false, reason: 'Only http:// or https:// are accepted' };
     }
     if (!parsed.hostname) {
-      return { ok: false, reason: 'URL thiếu hostname' };
+      return { ok: false, reason: 'URL is missing a hostname' };
     }
     if (parsed.username || parsed.password) {
-      return { ok: false, reason: 'URL không được chứa tài khoản/mật khẩu (user:pass@)' };
+      return { ok: false, reason: 'URL must not contain credentials (user:pass@)' };
     }
     return { ok: true, domain: parsed.hostname, normalized: parsed.toString() };
   } catch {
-    return { ok: false, reason: 'URL không hợp lệ' };
+    return { ok: false, reason: 'Invalid URL' };
   }
 };
 
@@ -657,7 +657,7 @@ const openExternalLink = async (url: string) => {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('open_external_link', { url });
     } catch (err) {
-      console.error('Mở link thất bại:', err);
+      console.error('Failed to open link:', err);
     }
   } else {
     window.open(url, '_blank', 'noopener');
@@ -702,13 +702,13 @@ const copyWebClientUrl = async () => {
             icon="lucide:layout-dashboard"
             class="text-sm text-white group-hover:text-cyan-300 transition-colors shrink-0"
           />
-          <h2 class="cyber-section-title">Kích thước Lưới</h2>
+          <h2 class="cyber-section-title">Grid Size</h2>
         </div>
-        <p class="cyber-section-desc">Tinh chỉnh kích cỡ cột hàng của pad</p>
+        <p class="cyber-section-desc">Fine-tune the pad's row and column count</p>
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div class="flex flex-col gap-1.5">
-          <label class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Dòng</label>
+          <label class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Rows</label>
           <div class="cyber-stepper flex items-center justify-between p-1">
             <button
               class="cyber-stepper-btn w-7 h-7 flex items-center justify-center text-sm font-semibold select-none"
@@ -728,7 +728,7 @@ const copyWebClientUrl = async () => {
           </div>
         </div>
         <div class="flex flex-col gap-1.5">
-          <label class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Cột</label>
+          <label class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Columns</label>
           <div class="cyber-stepper flex items-center justify-between p-1">
             <button
               class="cyber-stepper-btn w-7 h-7 flex items-center justify-center text-sm font-semibold select-none"
@@ -763,7 +763,7 @@ const copyWebClientUrl = async () => {
             icon="lucide:smartphone"
             class="text-sm text-white group-hover:text-cyan-300 transition-colors shrink-0"
           />
-          <h2 class="cyber-section-title">Kết nối thiết bị</h2>
+          <h2 class="cyber-section-title">Device Connection</h2>
         </div>
         <Icon
           :icon="qrSectionExpanded ? 'lucide:chevron-up' : 'lucide:chevron-down'"
@@ -802,13 +802,13 @@ const copyWebClientUrl = async () => {
         <!-- APK Tab Content -->
         <div v-show="activeQrTab === 'apk'" class="flex flex-col gap-2.5">
           <div class="flex justify-between items-center gap-1">
-            <p class="cyber-section-desc">LAN IP cho Android app</p>
+            <p class="cyber-section-desc">LAN IP for the Android app</p>
             <button
               type="button"
               class="cyber-action-btn font-bold cursor-pointer text-[9px] uppercase tracking-wider px-2 py-1 flex items-center gap-1"
               @click="copyApkConnectPayload"
               :disabled="!apkConnectPayload"
-              title="Sao chép payload kết nối APK"
+              title="Copy the APK connection payload"
             >
               <Icon :icon="apkCopyHint ? 'lucide:check' : 'lucide:copy'" class="text-[10px]" />
               <span>{{ apkCopyHint || 'Copy' }}</span>
@@ -827,13 +827,13 @@ const copyWebClientUrl = async () => {
                 class="text-lg animate-pulse text-rose-400"
               />
               <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                {{ wsBindError ? 'Bind Error' : 'Chưa sẵn sàng' }}
+                {{ wsBindError ? 'Bind Error' : 'Not ready' }}
               </span>
               <p class="text-[8.5px] text-slate-500">
                 {{
                   wsBindError
-                    ? 'Cổng WebSocket lỗi Firewall hoặc xung đột.'
-                    : 'Companion server đang khởi động.'
+                    ? 'WebSocket port blocked by Firewall or in conflict.'
+                    : 'Companion server is starting up.'
                 }}
               </p>
             </div>
@@ -842,15 +842,15 @@ const copyWebClientUrl = async () => {
               v-if="apkConnectQrSvg"
               type="button"
               class="w-48 h-48 rounded-lg overflow-hidden bg-white p-1 cursor-zoom-in shadow-[0_0_18px_rgba(34,211,238,0.08)] transition-all focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 outline-none hover:scale-[1.02]"
-              @click="emit('openZoomModal', 'Kết nối APK', apkConnectPayload, apkConnectQrSvg)"
+              @click="emit('openZoomModal', 'APK Connection', apkConnectPayload, apkConnectQrSvg)"
               @keydown.enter="
-                emit('openZoomModal', 'Kết nối APK', apkConnectPayload, apkConnectQrSvg)
+                emit('openZoomModal', 'APK Connection', apkConnectPayload, apkConnectQrSvg)
               "
               @keydown.space.prevent="
-                emit('openZoomModal', 'Kết nối APK', apkConnectPayload, apkConnectQrSvg)
+                emit('openZoomModal', 'APK Connection', apkConnectPayload, apkConnectQrSvg)
               "
-              title="Click để phóng to mã QR"
-              aria-label="Mã QR APK. Nhấn Enter hoặc Space để phóng to."
+              title="Click to zoom in on the QR code"
+              aria-label="APK QR code. Press Enter or Space to zoom in."
             >
               <div v-html="apkConnectQrSvg" class="w-full h-full"></div>
             </button>
@@ -869,13 +869,13 @@ const copyWebClientUrl = async () => {
         <!-- Web Client Tab Content -->
         <div v-show="activeQrTab === 'web'" class="flex flex-col gap-2.5">
           <div class="flex justify-between items-center gap-1">
-            <p class="cyber-section-desc">Mở Web client trên iPad / Browser</p>
+            <p class="cyber-section-desc">Open the Web client on iPad / Browser</p>
             <button
               type="button"
               class="cyber-action-btn font-bold cursor-pointer text-[9px] uppercase tracking-wider px-2 py-1 flex items-center gap-1"
               @click="copyWebClientUrl"
               :disabled="!webClientUrl"
-              title="Sao chép địa chỉ Web Client"
+              title="Copy the Web Client address"
             >
               <Icon :icon="webCopyHint ? 'lucide:check' : 'lucide:copy'" class="text-[10px]" />
               <span>{{ webCopyHint || 'Copy' }}</span>
@@ -904,17 +904,17 @@ const copyWebClientUrl = async () => {
                   webBindError
                     ? 'Bind Error'
                     : !savedServerConfig?.webEnabled
-                      ? 'Chưa bật Web Client'
-                      : 'Chưa sẵn sàng'
+                      ? 'Web Client not enabled'
+                      : 'Not ready'
                 }}
               </span>
               <p class="text-[8.5px] text-slate-500">
                 {{
                   webBindError
-                    ? 'Cổng Web Server bị xung đột.'
+                    ? 'Web Server port is in conflict.'
                     : !savedServerConfig?.webEnabled
-                      ? 'Hãy bật Web Client trong Cài đặt phía dưới.'
-                      : 'Companion HTTP đang khởi chạy.'
+                      ? 'Enable Web Client in Settings below.'
+                      : 'Companion HTTP is starting up.'
                 }}
               </p>
             </div>
@@ -928,8 +928,8 @@ const copyWebClientUrl = async () => {
               @keydown.space.prevent="
                 emit('openZoomModal', 'Web Client LAN', webClientUrl, webClientQrSvg)
               "
-              title="Click để phóng to mã QR"
-              aria-label="Mã QR Web Client. Nhấn Enter hoặc Space để phóng to."
+              title="Click to zoom in on the QR code"
+              aria-label="Web Client QR code. Press Enter or Space to zoom in."
             >
               <div v-html="webClientQrSvg" class="w-full h-full"></div>
             </button>
@@ -937,7 +937,7 @@ const copyWebClientUrl = async () => {
 
           <div class="px-1 text-[8.5px] text-slate-500 flex flex-col gap-0.5 leading-relaxed">
             <span class="font-bold text-[8px] uppercase tracking-wider text-slate-450"
-              >Địa chỉ URL:</span
+              >URL Address:</span
             >
             <span class="font-mono break-all line-clamp-2 select-text selection:bg-cyan-550/30">{{
               webClientUrl || '—'
@@ -956,17 +956,17 @@ const copyWebClientUrl = async () => {
               icon="lucide:settings"
               class="text-sm text-white group-hover:text-cyan-300 transition-colors shrink-0"
             />
-            <h2 class="cyber-section-title">Cấu hình phím</h2>
+            <h2 class="cyber-section-title">Key Configuration</h2>
           </div>
 
-          <p class="cyber-section-desc">Biên tập chi tiết nhãn, biểu tượng, sự kiện</p>
+          <p class="cyber-section-desc">Edit label, icon, and action details</p>
         </div>
         <div v-if="selectedButton" class="flex items-center gap-1.5 shrink-0 mt-1">
           <button
             type="button"
             @click="layoutStore.copyButtonConfig(selectedButton)"
             class="text-[8px] uppercase tracking-widest font-extrabold px-1.5 py-1 rounded border border-cyan-500/30 hover:border-cyan-400 bg-cyan-950/10 text-cyan-400 hover:bg-cyan-500/20 transition-all cursor-pointer flex items-center gap-0.5"
-            title="Sao chép cấu hình phím (Ctrl+C)"
+            title="Copy key configuration (Ctrl+C)"
           >
             <Icon icon="lucide:copy" class="text-[9px]" />
             <span>Copy</span>
@@ -976,7 +976,7 @@ const copyWebClientUrl = async () => {
             @click="layoutStore.pasteButtonConfig(selectedButton.id)"
             :disabled="!layoutStore.hasCopiedButton"
             class="text-[8px] uppercase tracking-widest font-extrabold px-1.5 py-1 rounded border border-cyan-500/30 hover:border-cyan-400 bg-cyan-950/10 text-cyan-400 hover:bg-cyan-500/20 transition-all cursor-pointer flex items-center gap-0.5 disabled:opacity-45 disabled:cursor-not-allowed"
-            title="Dán cấu hình phím (Ctrl+V)"
+            title="Paste key configuration (Ctrl+V)"
           >
             <Icon icon="lucide:clipboard" class="text-[9px]" />
             <span>Paste</span>
@@ -985,7 +985,7 @@ const copyWebClientUrl = async () => {
             type="button"
             @click="duplicateSelected"
             class="text-[8px] uppercase tracking-widest font-extrabold px-1.5 py-1 rounded border border-cyan-500/30 hover:border-cyan-400 bg-cyan-950/10 text-cyan-400 hover:bg-cyan-500/20 transition-all cursor-pointer flex items-center gap-0.5"
-            title="Nhân bản phím vào ô trống"
+            title="Duplicate key into an empty slot"
           >
             <Icon icon="lucide:copy-plus" class="text-[9px]" />
             <span>Dup</span>
@@ -996,7 +996,7 @@ const copyWebClientUrl = async () => {
       <div v-if="selectedButton" class="flex flex-col gap-4">
         <!-- Label -->
         <div class="flex flex-col gap-1.5">
-          <label class="cyber-input-label">Nhãn chữ</label>
+          <label class="cyber-input-label">Label Text</label>
           <Input
             v-model="selectedButton.label"
             type="text"
@@ -1007,7 +1007,7 @@ const copyWebClientUrl = async () => {
 
         <!-- Icon & Color -->
         <div class="flex flex-col gap-1.5">
-          <label class="cyber-input-label">Biểu tượng & Màu sắc</label>
+          <label class="cyber-input-label">Icon & Color</label>
           <div class="flex flex-col gap-3">
             <div class="flex gap-2">
               <div class="h-10 w-12 cyber-inset flex items-center justify-center overflow-hidden">
@@ -1042,8 +1042,8 @@ const copyWebClientUrl = async () => {
                     :class="hexDraftValid ? 'border-cyan-400/20' : 'border-rose-500/70'"
                     :title="
                       hexDraftValid
-                        ? 'Nhập mã hex (#rgb hoặc #rrggbb)'
-                        : 'Mã hex không hợp lệ — sẽ revert khi rời focus'
+                        ? 'Enter a hex code (#rgb or #rrggbb)'
+                        : 'Invalid hex code — will revert on blur'
                     "
                     @focus="onHexDraftFocus"
                     @input="onHexDraftInput"
@@ -1055,7 +1055,7 @@ const copyWebClientUrl = async () => {
                   type="button"
                   @click="copyColor"
                   class="text-slate-400 hover:text-cyan-400 cursor-pointer select-none flex items-center gap-1 focus:outline-none transition-colors"
-                  :title="colorCopyHint || 'Sao chép mã màu'"
+                  :title="colorCopyHint || 'Copy color code'"
                 >
                   <span
                     v-if="colorCopyHint"
@@ -1105,10 +1105,10 @@ const copyWebClientUrl = async () => {
                       type="button"
                       @click="($refs.iconFileInput as HTMLInputElement).click()"
                       class="text-[8px] uppercase tracking-widest font-extrabold px-1.5 py-0.5 rounded border border-cyan-500/30 hover:border-cyan-400 bg-cyan-950/10 text-cyan-400 hover:bg-cyan-500/20 transition-all cursor-pointer flex items-center gap-0.5 whitespace-nowrap shrink-0"
-                      title="Tải ảnh PNG/JPG từ máy tính làm biểu tượng nút"
+                      title="Upload a PNG/JPG image from your computer as the button icon"
                     >
                       <Icon icon="lucide:upload" class="text-[8px]" />
-                      Tải ảnh
+                      Upload
                     </button>
 
                     <!-- Icon Scale Option Dropdown -->
@@ -1117,18 +1117,18 @@ const copyWebClientUrl = async () => {
                       v-model="selectedButton.iconSizing"
                       @change="saveButtonSettings"
                       class="text-[8px] font-bold uppercase tracking-wider bg-slate-900 border border-slate-700 text-cyan-400 rounded px-1 py-0.5 cursor-pointer max-w-[80px] shrink-0"
-                      title="Tỉ lệ phủ ảnh trên nút (Sizing Mode)"
+                      title="Image scaling on the button (Sizing Mode)"
                     >
-                      <option value="normal">Gốc</option>
-                      <option value="cover">Cover (Phủ)</option>
-                      <option value="contain">Contain (Thừa)</option>
-                      <option value="fill">Fill (Kéo)</option>
+                      <option value="normal">Original</option>
+                      <option value="cover">Cover (Fill)</option>
+                      <option value="contain">Contain (Fit)</option>
+                      <option value="fill">Fill (Stretch)</option>
                     </select>
                   </div>
                 </div>
                 <Input
                   v-model="searchQuery"
-                  placeholder="Tìm biểu tượng..."
+                  placeholder="Search icons..."
                   class="h-6 text-[9px] py-1 px-2.5 cyber-input-sm"
                 />
               </div>
@@ -1136,7 +1136,7 @@ const copyWebClientUrl = async () => {
                 v-if="isFullSearch"
                 class="text-[8px] text-cyan-400/70 font-mono text-center leading-tight pb-0.5"
               >
-                Đang tìm trong toàn bộ {{ packLabel }} ({{ filteredIcons.length }} kết quả)
+                Searching all of {{ packLabel }} ({{ filteredIcons.length }} results)
               </p>
               <div
                 ref="iconScrollRef"
@@ -1157,7 +1157,7 @@ const copyWebClientUrl = async () => {
                   v-if="filteredIcons.length === 0"
                   class="col-span-6 text-[9px] text-slate-500 font-bold text-center py-4 uppercase"
                 >
-                  Không tìm thấy biểu tượng
+                  No icons found
                 </p>
                 <div
                   ref="sentinelRef"
@@ -1171,7 +1171,7 @@ const copyWebClientUrl = async () => {
 
         <!-- Button Kind Toggle -->
         <div class="flex flex-col gap-2">
-          <label class="cyber-input-label">Loại button</label>
+          <label class="cyber-input-label">Button Type</label>
           <div class="cyber-tab-group flex p-1 text-[10px]">
             <button
               v-for="kind in ['action', 'monitor'] as const"
@@ -1191,7 +1191,7 @@ const copyWebClientUrl = async () => {
 
         <!-- Genshin Frame Selector -->
         <div v-if="layoutStore.layout.theme === 'genshin-01'" class="flex flex-col gap-2">
-          <label class="cyber-input-label">Khung viền Genshin</label>
+          <label class="cyber-input-label">Genshin Frame</label>
           <div class="cyber-tab-group grid grid-cols-4 gap-1 p-1 text-[10px]">
             <button
               v-for="frame in [1, 2, 3, 4]"
@@ -1207,7 +1207,7 @@ const copyWebClientUrl = async () => {
                   : 'text-slate-500 hover:text-slate-300'
               "
             >
-              Khung {{ frame }}
+              Frame {{ frame }}
             </button>
           </div>
         </div>
@@ -1218,7 +1218,7 @@ const copyWebClientUrl = async () => {
           class="cyber-inset p-3 flex flex-col gap-3"
         >
           <div class="flex flex-col gap-1.5">
-            <label class="cyber-input-label">Dữ liệu hiển thị</label>
+            <label class="cyber-input-label">Displayed Data</label>
             <select
               v-model="selectedButton.monitorConfig!.metricType"
               @change="saveButtonSettings"
@@ -1229,7 +1229,7 @@ const copyWebClientUrl = async () => {
             </select>
           </div>
           <div class="flex flex-col gap-1.5">
-            <label class="cyber-input-label">Cập nhật mỗi (giây)</label>
+            <label class="cyber-input-label">Update every (seconds)</label>
             <input
               type="number"
               min="1"
@@ -1252,7 +1252,7 @@ const copyWebClientUrl = async () => {
         <!-- Action Type Tabs -->
         <template v-if="selectedButton.buttonKind !== 'monitor'">
           <div class="flex flex-col gap-2">
-            <label class="cyber-input-label">Loại sự kiện</label>
+            <label class="cyber-input-label">Action Type</label>
             <div class="cyber-tab-group grid grid-cols-3 gap-1 p-1.5 text-[10px]">
               <button
                 v-for="tab in ['shortcut', 'media', 'app', 'command', 'link'] as ActionType[]"
@@ -1278,12 +1278,12 @@ const copyWebClientUrl = async () => {
             <!-- Shortcut -->
             <div v-if="activeTab === 'shortcut'" class="flex flex-col gap-3">
               <div class="flex flex-col gap-2">
-                <span class="text-[9px] font-bold uppercase text-slate-400">Tổ hợp phím tắt:</span>
+                <span class="text-[9px] font-bold uppercase text-slate-400">Keyboard shortcut:</span>
                 <div class="relative flex items-center cyber-input-group overflow-hidden">
                   <Input
                     v-model="selectedButton.shortcutValue"
                     type="text"
-                    placeholder="Chưa gán phím"
+                    placeholder="No key assigned"
                     class="border-0 bg-transparent px-3 py-1.5 shadow-none"
                     disabled
                   />
@@ -1292,14 +1292,14 @@ const copyWebClientUrl = async () => {
                     class="cyber-record-btn h-auto text-[10px] font-bold uppercase tracking-wider px-3 py-1.5 cursor-pointer"
                     :class="isRecording ? 'cyber-record-btn--active' : ''"
                   >
-                    {{ isRecording ? 'Thu...' : 'Thu' }}
+                    {{ isRecording ? 'Recording...' : 'Record' }}
                   </button>
                 </div>
                 <p
                   class="text-[9px] text-fuchsia-400 font-semibold select-none leading-relaxed animate-pulse"
                   v-if="isRecording"
                 >
-                  ⚠️ Nhấp tổ hợp phím bất kỳ trên bàn phím của bạn để ghi nhận... (Đang giữ:
+                  ⚠ Press any key combination on your keyboard to record it... (Holding:
                   {{ currentRecordingPreview }})
                 </p>
               </div>
@@ -1307,7 +1307,7 @@ const copyWebClientUrl = async () => {
               <!-- Modifier toggles + manual key picker -->
               <div v-if="isRecording" class="flex flex-col gap-2 pt-2 cyber-divider">
                 <span class="text-[9px] font-bold uppercase tracking-widest text-slate-500">
-                  Hoặc gán thủ công (cho tổ hợp bị macOS chặn):
+                  Or assign manually (for combinations blocked by macOS):
                 </span>
                 <div class="grid grid-cols-4 gap-1.5">
                   <button
@@ -1347,7 +1347,7 @@ const copyWebClientUrl = async () => {
                   <Input
                     v-model="manualKey"
                     type="text"
-                    placeholder="Phím cuối (vd: Q, F4, Space)"
+                    placeholder="Final key (e.g. Q, F4, Space)"
                     class="flex-1 text-[10px] py-1 px-2"
                     maxlength="10"
                   />
@@ -1363,13 +1363,13 @@ const copyWebClientUrl = async () => {
                     :disabled="!manualKey.trim()"
                     class="cyber-action-btn font-bold text-[10px] uppercase tracking-wider px-3 py-1 cursor-pointer disabled:opacity-40"
                   >
-                    Áp dụng
+                    Apply
                   </button>
                 </div>
               </div>
               <div class="flex flex-col gap-1.5 pt-2 cyber-divider">
                 <span class="text-[9px] font-bold uppercase tracking-widest text-slate-500"
-                  >Mẫu gợi ý nhanh:</span
+                  >Quick presets:</span
                 >
                 <div class="grid grid-cols-2 gap-1.5 max-h-[105px] overflow-y-auto pr-1">
                   <button
@@ -1387,16 +1387,16 @@ const copyWebClientUrl = async () => {
 
             <!-- Media -->
             <div v-else-if="activeTab === 'media'" class="flex flex-col gap-2">
-              <span class="text-[9px] font-bold uppercase text-slate-400">Lệnh hệ thống:</span>
+              <span class="text-[9px] font-bold uppercase text-slate-400">System command:</span>
               <select
                 v-model="selectedButton.mediaAction"
                 class="w-full text-xs font-semibold cyber-select px-2.5 py-2.5 cursor-pointer"
                 @change="saveButtonSettings"
               >
                 <option value="play_pause">Play/Pause</option>
-                <option value="volume_up">Volume (+) Tăng</option>
-                <option value="volume_down">Volume (-) Giảm</option>
-                <option value="mute">Mute Tắt âm</option>
+                <option value="volume_up">Volume Up (+)</option>
+                <option value="volume_down">Volume Down (-)</option>
+                <option value="mute">Mute</option>
                 <option value="next">Next Track</option>
                 <option value="prev">Previous Track</option>
               </select>
@@ -1409,19 +1409,19 @@ const copyWebClientUrl = async () => {
                   <span class="text-[9px] font-bold uppercase text-slate-400">
                     {{
                       isMac
-                        ? 'Đường dẫn App macOS (.app):'
-                        : 'Đường dẫn .exe hoặc dán shortcut (.lnk):'
+                        ? 'macOS App Path (.app):'
+                        : '.exe path or paste a shortcut (.lnk):'
                     }}
                   </span>
                   <button
                     type="button"
                     class="text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer p-0.5 flex items-center gap-1"
-                    title="Xem hướng dẫn dán Shortcut / Copy as path"
+                    title="View guide for pasting a Shortcut / Copy as path"
                     @click="emit('openGuideCenter', 'shortcut')"
                   >
                     <Icon icon="lucide:help-circle" class="text-xs" />
                     <span class="text-[8.5px] uppercase tracking-wider font-semibold"
-                      >Trợ giúp</span
+                      >Help</span
                     >
                   </button>
                 </div>
@@ -1431,7 +1431,7 @@ const copyWebClientUrl = async () => {
                   :placeholder="
                     isMac
                       ? 'e.g. /Applications/Safari.app'
-                      : 'Dán shortcut hoặc C:\\path\\app.exe --args'
+                      : 'Paste a shortcut or C:\\path\\app.exe --args'
                   "
                   @input="saveButtonSettings"
                   @paste="handleAppPathPaste"
@@ -1454,7 +1454,7 @@ const copyWebClientUrl = async () => {
               </button>
               <div class="flex flex-col gap-1.5 pt-2 cyber-divider">
                 <span class="text-[9px] font-bold uppercase tracking-widest text-slate-500"
-                  >Chọn nhanh ứng dụng:</span
+                  >Quick app select:</span
                 >
                 <div class="grid grid-cols-2 gap-1.5 max-h-[120px] overflow-y-auto pr-1">
                   <button
@@ -1473,7 +1473,7 @@ const copyWebClientUrl = async () => {
 
             <!-- Command -->
             <div v-else-if="activeTab === 'command'" class="flex flex-col gap-2">
-              <span class="text-[9px] font-bold uppercase text-slate-400">Lệnh shell:</span>
+              <span class="text-[9px] font-bold uppercase text-slate-400">Shell command:</span>
               <textarea
                 v-model="selectedButton.commandValue"
                 rows="3"
@@ -1489,14 +1489,14 @@ const copyWebClientUrl = async () => {
                   @click="emit('openGuideCenter', 'browser')"
                 >
                   <Icon icon="lucide:help-circle" class="text-xs" />
-                  <span>Xem mẫu lệnh trợ giúp...</span>
+                  <span>View example commands...</span>
                 </button>
               </div>
               <p
                 class="text-[9px] font-bold leading-relaxed text-amber-400/90 cyber-warning px-2 py-1.5"
               >
-                ⚠ Lệnh chạy với quyền user hiện tại — chỉ dùng cho command bạn tin cậy. Trên
-                macOS/Linux qua <span class="font-mono">/bin/sh -c</span>, Windows qua
+                ⚠ The command runs with the current user's permissions — only use commands you trust. On
+                macOS/Linux via <span class="font-mono">/bin/sh -c</span>, Windows via
                 <span class="font-mono">cmd /C</span>.
               </p>
             </div>
@@ -1504,7 +1504,7 @@ const copyWebClientUrl = async () => {
             <!-- Link -->
             <div v-else-if="activeTab === 'link'" class="flex flex-col gap-2">
               <label class="text-[9px] font-bold uppercase text-slate-400" for="link-url-input"
-                >URL trang web:</label
+                >Website URL:</label
               >
               <Input
                 id="link-url-input"
@@ -1521,8 +1521,8 @@ const copyWebClientUrl = async () => {
                 class="text-[9px] font-bold text-green-400 flex items-center gap-1"
               >
                 <Icon icon="lucide:check-circle" class="text-xs" />
-                Mở <span class="font-mono">{{ linkUrlValidation.domain }}</span> bằng trình duyệt
-                mặc định.
+                Opens <span class="font-mono">{{ linkUrlValidation.domain }}</span> with the default
+                browser.
               </p>
               <div v-if="linkUrlValidation.ok" class="flex justify-end">
                 <button
@@ -1531,7 +1531,7 @@ const copyWebClientUrl = async () => {
                   @click="testOpenLink"
                 >
                   <Icon icon="lucide:external-link" class="text-xs" />
-                  <span>Mở thử trên máy này</span>
+                  <span>Test open on this machine</span>
                 </button>
               </div>
               <p v-else class="text-[9px] font-bold text-red-400 flex items-center gap-1">
@@ -1539,10 +1539,10 @@ const copyWebClientUrl = async () => {
                 {{ linkUrlValidation.reason }}
               </p>
               <p class="text-[9px] font-bold leading-relaxed text-slate-500 px-2 py-1.5">
-                URL được truyền nguyên dạng cho lệnh hệ điều hành (Windows
+                The URL is passed as-is to the OS command (Windows
                 <span class="font-mono">cmd /c start</span>, macOS
                 <span class="font-mono">open</span>, Linux <span class="font-mono">xdg-open</span>)
-                — không nối chuỗi shell.
+                — no shell string concatenation.
               </p>
             </div>
           </div>
@@ -1557,7 +1557,7 @@ const copyWebClientUrl = async () => {
         <span
           class="text-[10px] text-slate-500 font-bold uppercase tracking-wider max-w-[200px] leading-relaxed"
         >
-          Chọn ô nút bên lưới mô phỏng để gán sự kiện
+          Select a key on the preview grid to assign an action
         </span>
       </div>
     </div>

@@ -40,7 +40,7 @@ const emit = defineEmits<{
             class="cyber-action-btn font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1"
             @click="emit('scrollToAccessibility')"
           >
-            Xem panel khôi phục
+            View recovery panel
           </button>
         </div>
       </div>
@@ -48,7 +48,7 @@ const emit = defineEmits<{
         type="button"
         class="text-slate-500 hover:text-slate-300 cursor-pointer shrink-0"
         @click="emit('dismiss')"
-        title="Đóng"
+        title="Close"
       >
         <Icon icon="lucide:x" class="text-sm" />
       </button>

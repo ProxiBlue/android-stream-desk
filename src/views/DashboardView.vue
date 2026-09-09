@@ -170,15 +170,15 @@ const toggleAutostart = async () => {
     layoutStore.lastToast = {
       kind: 'info',
       message: autostartOn.value
-        ? 'Đã bật tự khởi động cùng hệ thống thành công'
-        : 'Đã tắt tự khởi động cùng hệ thống thành công',
+        ? 'Successfully enabled start with system'
+        : 'Successfully disabled start with system',
       at: Date.now(),
     };
   } catch (err: any) {
     console.error('Failed to toggle autostart:', err);
     layoutStore.lastToast = {
       kind: 'error',
-      message: `Lỗi thiết lập khởi động: ${err?.message || err}. Hãy chạy ứng dụng với quyền Administrator hoặc kiểm tra danh sách Startup.`,
+      message: `Startup setup error: ${err?.message || err}. Try running the app as Administrator or check the Startup list.`,
       at: Date.now(),
     };
   } finally {
@@ -191,7 +191,7 @@ const serverConfigLoaded = ref(false);
 const serverConfigSaving = ref(false);
 const serverConfigError = ref<string>('');
 const restartDialogOpen = ref(false);
-const restartDialogMessage = ref('Đang lưu cấu hình và khởi động lại Companion...');
+const restartDialogMessage = ref('Saving configuration and restarting Companion...');
 const restartDialogFailed = ref(false);
 const isDevBuild = import.meta.env.DEV;
 const savedServerConfig = ref<ServerConfig | null>(null);
@@ -209,25 +209,25 @@ const toServerConfigDraft = (config: ServerConfig): ServerConfigDraft => ({
 
 const parsePortDraft = (raw: string, label: string) => {
   const trimmed = raw.trim();
-  if (!/^\d+$/.test(trimmed)) return { error: `${label} phải là số nguyên.` };
+  if (!/^\d+$/.test(trimmed)) return { error: `${label} must be a whole number.` };
 
   const value = Number(trimmed);
   if (value < 1024 || value > 65535) {
-    return { error: `${label} phải nằm trong khoảng 1024..65535.` };
+    return { error: `${label} must be between 1024..65535.` };
   }
 
   return { value };
 };
 
 const serverConfigValidationError = computed(() => {
-  const ws = parsePortDraft(serverConfigDraft.value.wsPort, 'Cổng WebSocket');
+  const ws = parsePortDraft(serverConfigDraft.value.wsPort, 'WebSocket port');
   if (ws.error) return ws.error;
 
-  const web = parsePortDraft(serverConfigDraft.value.webPort, 'Cổng HTTP Web Client');
+  const web = parsePortDraft(serverConfigDraft.value.webPort, 'HTTP Web Client port');
   if (web.error) return web.error;
 
   if (serverConfigDraft.value.webEnabled && ws.value === web.value) {
-    return 'Cổng WebSocket và HTTP Web Client không được trùng khi Web Client bật.';
+    return 'The WebSocket port and HTTP Web Client port cannot be the same while Web Client is enabled.';
   }
 
   return '';
@@ -246,7 +246,7 @@ const hasPendingServerChanges = computed(() => {
 });
 
 const networkSettingsBadgeText = computed(() =>
-  hasPendingServerChanges.value ? 'Đang áp dụng' : 'Đang khớp listener hiện thời',
+  hasPendingServerChanges.value ? 'Applying' : 'Matches current listener',
 );
 
 const canSaveServerConfig = computed(
@@ -258,12 +258,12 @@ const canSaveServerConfig = computed(
 );
 
 const serverConfigSaveHint = computed(() => {
-  if (serverConfigSaving.value) return 'Đang ghi server.json và chuẩn bị relaunch…';
-  if (restartDialogOpen.value) return 'Đang chờ Companion khởi động lại để áp dụng cấu hình.';
+  if (serverConfigSaving.value) return 'Writing server.json and preparing to relaunch…';
+  if (restartDialogOpen.value) return 'Waiting for Companion to restart to apply the configuration.';
   if (serverConfigValidationError.value) return serverConfigValidationError.value;
   if (!hasPendingServerChanges.value)
-    return 'Chưa có thay đổi. Bật/tắt toggle hoặc đổi port để kích hoạt nút.';
-  return 'Lưu thay đổi port sẽ ghi vào server.json và khởi động lại Companion.';
+    return 'No changes yet. Toggle a switch or change a port to enable the button.';
+  return 'Saving the port change will write to server.json and restart Companion.';
 });
 
 const hasListenerBindError = computed(() => Boolean(wsBindError.value || webBindError.value));
@@ -284,10 +284,10 @@ const listenerHealthBadge = computed(() => {
 
   if (hasPendingServerChanges.value) {
     return {
-      label: 'Đang áp dụng',
+      label: 'Applying',
       detail: `WS ${activeWsPort.value}`,
       icon: 'lucide:refresh-cw',
-      title: 'Cấu hình đã lưu nhưng listener mới chưa chạy',
+      title: 'Configuration saved but the new listener is not running yet',
       classes: 'border-amber-500/45 text-amber-300',
       iconClass: 'text-amber-400 animate-spin',
     };
@@ -304,7 +304,7 @@ const listenerHealthBadge = computed(() => {
       label: 'Restart pending',
       detail: `WS ${serverPort.value}`,
       icon: 'lucide:refresh-cw',
-      title: 'Listener chưa khớp cấu hình hiện thời',
+      title: 'Listener does not match the current configuration',
       classes: 'border-amber-500/45 text-amber-300',
       iconClass: 'text-amber-400',
     };
@@ -314,7 +314,7 @@ const listenerHealthBadge = computed(() => {
     label: 'Listening',
     detail: `WS ${activeWsPort.value}`,
     icon: 'lucide:radio-tower',
-    title: 'WebSocket listener đang chạy',
+    title: 'WebSocket listener is running',
     classes: 'border-emerald-500/40 text-emerald-300',
     iconClass: 'text-emerald-400',
   };
@@ -368,8 +368,8 @@ const runRelaunchWithTimeout = async () => {
 };
 
 const buildServerConfigPayload = (): ServerConfig | null => {
-  const ws = parsePortDraft(serverConfigDraft.value.wsPort, 'Cổng WebSocket');
-  const web = parsePortDraft(serverConfigDraft.value.webPort, 'Cổng HTTP Web Client');
+  const ws = parsePortDraft(serverConfigDraft.value.wsPort, 'WebSocket port');
+  const web = parsePortDraft(serverConfigDraft.value.webPort, 'HTTP Web Client port');
   if (ws.error || web.error || ws.value === undefined || web.value === undefined) return null;
 
   return {
@@ -397,7 +397,7 @@ const saveNetworkSettingsAndRelaunch = async () => {
   }
 
   if (!(window as any).__TAURI_INTERNALS__) {
-    serverConfigError.value = 'Chỉ có thể lưu và khởi động lại trong Companion desktop.';
+    serverConfigError.value = 'Saving and restarting is only available in the Companion desktop app.';
     return;
   }
 
@@ -412,12 +412,12 @@ const saveNetworkSettingsAndRelaunch = async () => {
     restartDialogOpen.value = true;
     restartDialogFailed.value = false;
     restartDialogMessage.value =
-      'Đã lưu cấu hình. Companion đang khởi động lại để áp dụng cổng mới...';
+      'Configuration saved. Companion is restarting to apply the new port...';
 
     if (isDevBuild) {
       restartDialogFailed.value = true;
       restartDialogMessage.value =
-        'Đã lưu cấu hình. Đang chạy ở chế độ dev nên Companion không tự relaunch để tránh webview trắng do mất Vite dev server. Hãy dừng và chạy lại `pnpm tauri dev` để áp dụng cổng mới.';
+        'Configuration saved. Running in dev mode, so Companion will not auto-relaunch, to avoid a blank webview from losing the Vite dev server. Stop and re-run `pnpm tauri dev` to apply the new port.';
       return;
     }
 
@@ -426,7 +426,7 @@ const saveNetworkSettingsAndRelaunch = async () => {
         await runRelaunchWithTimeout();
       } catch (err: any) {
         restartDialogFailed.value = true;
-        restartDialogMessage.value = `Đã lưu cấu hình nhưng chưa thể tự khởi động lại: ${err?.message || err}`;
+        restartDialogMessage.value = `Configuration saved but could not restart automatically: ${err?.message || err}`;
         layoutStore.lastToast = {
           kind: 'error',
           message: restartDialogMessage.value,
@@ -435,7 +435,7 @@ const saveNetworkSettingsAndRelaunch = async () => {
       }
     }, 450);
   } catch (err: any) {
-    serverConfigError.value = `Không lưu được cấu hình mạng: ${err?.message || err}`;
+    serverConfigError.value = `Failed to save network configuration: ${err?.message || err}`;
     layoutStore.lastToast = {
       kind: 'error',
       message: serverConfigError.value,
@@ -489,15 +489,15 @@ const shortBundleIdentifier = computed(() => {
 const inputPermissionActionText = computed(() => {
   switch (inputPermissionDiagnostics.value?.recommendedAction) {
     case 'remove_stale_entry':
-      return 'Bản `.app` build lại đã đổi chữ ký nên entry Accessibility cũ vô dụng. Quit app, xoá entry Android Stream Desk cũ trong Accessibility, kéo đúng .app mới vào, bật lại rồi mở app.';
+      return 'The rebuilt `.app` changed its signature, so the old Accessibility entry is no longer valid. Quit the app, remove the old Android Stream Desk entry in Accessibility, drag in the new .app, re-enable it, then reopen the app.';
     case 'restart_app':
-      return 'macOS đã trust process native, nhưng probe input vẫn lỗi. Hãy quit và mở lại Companion để TCC cache nạp lại quyền.';
+      return 'macOS already trusts the native process, but the input probe still fails. Quit and reopen Companion so the TCC cache reloads the permission.';
     case 'open_settings':
-      return 'Mở Accessibility Settings và bật Android Stream Desk cho binary đang chạy.';
+      return 'Open Accessibility Settings and enable Android Stream Desk for the running binary.';
     case 'allow':
-      return 'Quyền Accessibility native đang hợp lệ.';
+      return 'Native Accessibility permission is valid.';
     default:
-      return 'Kiểm tra Accessibility để biết app/path nào đang được macOS trust.';
+      return 'Check Accessibility to see which app/path macOS currently trusts.';
   }
 });
 
@@ -670,7 +670,7 @@ const handleClipboardShortcuts = (e: KeyboardEvent) => {
       layoutStore.copyButtonConfig(selectedButton.value);
       layoutStore.lastToast = {
         kind: 'info',
-        message: `Đã sao chép cấu hình nút "${selectedButton.value.label || 'Không tên'}"`,
+        message: `Copied button configuration "${selectedButton.value.label || 'Unnamed'}"`,
         at: Date.now(),
       };
     }
@@ -682,7 +682,7 @@ const handleClipboardShortcuts = (e: KeyboardEvent) => {
       layoutStore.pasteButtonConfig(selectedButton.value.id);
       layoutStore.lastToast = {
         kind: 'info',
-        message: 'Đã dán cấu hình thành công!',
+        message: 'Configuration pasted successfully!',
         at: Date.now(),
       };
     }
@@ -703,7 +703,7 @@ const openExternalLink = async (url: string) => {
       const { invoke } = await import('@tauri-apps/api/core');
       await invoke('open_external_link', { url });
     } catch (err) {
-      console.error('Mở link thất bại:', err);
+      console.error('Failed to open link:', err);
     }
   } else {
     window.open(url, '_blank', 'noopener');
@@ -722,14 +722,14 @@ const handleExport = async () => {
     if (ok) {
       layoutStore.lastToast = {
         kind: 'info',
-        message: 'Đã xuất cấu hình ra file JSON.',
+        message: 'Configuration exported to a JSON file.',
         at: Date.now(),
       };
     }
   } catch (e: any) {
     layoutStore.lastToast = {
       kind: 'error',
-      message: `Export lỗi: ${e?.message ?? e}`,
+      message: `Export error: ${e?.message ?? e}`,
       at: Date.now(),
     };
   }
@@ -745,13 +745,13 @@ const handleImport = async (e: Event) => {
     selectedButtonId.value = null;
     layoutStore.lastToast = {
       kind: 'info',
-      message: `Đã nạp cấu hình từ "${file.name}".`,
+      message: `Configuration loaded from "${file.name}".`,
       at: Date.now(),
     };
   } catch (err: any) {
     layoutStore.lastToast = {
       kind: 'error',
-      message: `Import lỗi: ${err?.message ?? err}`,
+      message: `Import error: ${err?.message ?? err}`,
       at: Date.now(),
     };
   }
@@ -762,7 +762,7 @@ const syncLayout = () => {
   layoutStore.broadcastSync();
   if (syncTimer !== null) clearTimeout(syncTimer);
   const isConnected = useConnectionStore().status === 'connected';
-  syncHint.value = isConnected ? 'Đã đồng bộ!' : 'Đã đồng bộ cục bộ';
+  syncHint.value = isConnected ? 'Synced!' : 'Synced locally';
   syncTimer = setTimeout(() => {
     syncHint.value = '';
     syncTimer = null;
@@ -1047,14 +1047,14 @@ onUnmounted(() => {
             <div class="flex flex-col">
               <h3 class="text-xs font-bold text-slate-50 uppercase tracking-wider">
                 {{
-                  restartDialogFailed ? 'Chưa tự khởi động lại được' : 'Đang áp dụng cấu hình mạng'
+                  restartDialogFailed ? 'Could not restart automatically' : 'Applying network configuration'
                 }}
               </h3>
               <p class="text-[9px] text-slate-500 mt-0.5">
                 {{
                   restartDialogFailed
-                    ? 'Cấu hình đã lưu; hãy mở lại Companion thủ công nếu cần.'
-                    : 'Companion sẽ mở lại with listener mới.'
+                    ? 'Configuration saved; please reopen Companion manually if needed.'
+                    : 'Companion will reopen with the new listener.'
                 }}
               </p>
             </div>
@@ -1067,20 +1067,20 @@ onUnmounted(() => {
             class="rounded-lg border border-amber-300/20 bg-amber-400/10 px-3 py-2.5 text-[10px] leading-relaxed text-amber-100/90"
           >
             <div class="font-bold uppercase tracking-wider text-amber-200">
-              Checklist restart thủ công
+              Manual restart checklist
             </div>
             <ul class="mt-2 flex flex-col gap-1.5 text-slate-300">
               <li class="flex gap-2">
                 <Icon icon="lucide:check" class="mt-0.5 text-xs text-amber-300 shrink-0" />
-                Dừng Companion hiện tại.
+                Stop the currently running Companion.
               </li>
               <li class="flex gap-2">
                 <Icon icon="lucide:check" class="mt-0.5 text-xs text-amber-300 shrink-0" />
-                Chạy lại `pnpm tauri dev` hoặc mở lại app đã build.
+                Re-run `pnpm tauri dev` or reopen the built app.
               </li>
               <li class="flex gap-2">
                 <Icon icon="lucide:check" class="mt-0.5 text-xs text-amber-300 shrink-0" />
-                Chờ badge chuyển sang Listening rồi mới quét/copy endpoint.
+                Wait for the badge to switch to Listening before scanning/copying the endpoint.
               </li>
             </ul>
           </div>

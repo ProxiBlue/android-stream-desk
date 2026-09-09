@@ -40,7 +40,7 @@ const aspectRatio = computed(() => {
     <span
       class="absolute top-6 left-8 text-[10px] font-bold uppercase tracking-widest text-cyan-400/50 select-none"
     >
-      Mô hình Stream Desk cảm ứng thực tế
+      Realistic touch Stream Desk model
       {{ props.clientDeviceName ? `(${props.clientDeviceName})` : '' }}
     </span>
 
@@ -92,13 +92,13 @@ const aspectRatio = computed(() => {
             @input="layoutStore.renamePage(idx, ($event.target as HTMLInputElement).value)"
             @click.stop
           />
-          <span v-else>Trang {{ idx + 1 }}</span>
+          <span v-else>Page {{ idx + 1 }}</span>
 
           <!-- Remove Page tab button -->
           <button
             v-if="layoutStore.layout.pages.length > 1"
             class="text-xs hover:text-rose-500 transition-colors p-0.5 rounded cursor-pointer"
-            title="Xóa trang"
+            title="Remove page"
             @click.stop="layoutStore.removePage(idx)"
           >
             <Icon icon="lucide:x" class="text-[9px]" />
@@ -108,7 +108,7 @@ const aspectRatio = computed(() => {
         <!-- Add Page Button -->
         <button
           class="w-6 h-6 flex items-center justify-center rounded-lg border border-dashed border-slate-700 hover:border-cyan-500/50 text-slate-500 hover:text-cyan-400 bg-slate-900/10 transition-all duration-200 cursor-pointer"
-          title="Thêm trang mới"
+          title="Add new page"
           @click="layoutStore.addPage()"
         >
           <Icon icon="lucide:plus" class="text-xs" />

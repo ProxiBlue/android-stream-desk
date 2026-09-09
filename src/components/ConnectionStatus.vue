@@ -53,10 +53,10 @@ onMounted(async () => {
           ></span>
         </span>
         <span class="text-sm font-semibold capitalize tracking-wide">
-          {{ connectionStore.status === 'connected' ? 'Đã kết nối' :
-             connectionStore.status === 'connecting' ? 'Đang kết nối...' :
-             connectionStore.status === 'error' ? 'Lỗi kết nối' :
-             connectionStore.isReconnecting ? 'Mất kết nối' : 'Chưa kết nối' }}
+          {{ connectionStore.status === 'connected' ? 'Connected' :
+             connectionStore.status === 'connecting' ? 'Connecting...' :
+             connectionStore.status === 'error' ? 'Connection Error' :
+             connectionStore.isReconnecting ? 'Disconnected' : 'Not Connected' }}
         </span>
       </div>
 
@@ -65,7 +65,7 @@ onMounted(async () => {
         <input 
           v-model="connectionStore.ipAddress" 
           type="text" 
-          placeholder="Địa chỉ IP (e.g. 192.168.1.5)"
+          placeholder="IP Address (e.g. 192.168.1.5)"
           class="bg-brand-dark border border-brand-border text-slate-100 rounded-lg px-3 py-1.5 w-full text-sm focus:outline-none focus:border-brand-accent transition-colors"
           :disabled="connectionStore.status === 'connected' || connectionStore.status === 'connecting'"
         />
@@ -88,7 +88,7 @@ onMounted(async () => {
         'bg-brand-accent hover:bg-brand-accentHover text-white': connectionStore.status !== 'connected' && connectionStore.status !== 'connecting'
       }"
     >
-      {{ connectionStore.status === 'connected' || connectionStore.status === 'connecting' ? 'Ngắt kết nối' : 'Kết nối' }}
+      {{ connectionStore.status === 'connected' || connectionStore.status === 'connecting' ? 'Disconnect' : 'Connect' }}
     </button>
   </div>
 </template>

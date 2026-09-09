@@ -77,13 +77,13 @@ const emit = defineEmits<{
         />
         <div class="flex flex-col">
           <label class="text-[9px] uppercase tracking-widest font-bold text-slate-500"
-            >Đang kết nối</label
+            >Connected</label
           >
           <span
             class="font-mono text-xs font-bold"
             :class="activeConnectionsCount > 0 ? 'text-emerald-300' : 'text-slate-500'"
           >
-            {{ activeConnectionsCount }} thiết bị
+            {{ activeConnectionsCount }} devices
           </span>
         </div>
       </div>
@@ -109,7 +109,7 @@ const emit = defineEmits<{
             class="text-[8px] text-slate-400 hover:text-cyan-400 transition-colors text-left underline decoration-dotted cursor-pointer font-medium mt-0.5 truncate"
             @click="emit('openGuide', 'firewall')"
           >
-            Hướng dẫn mở khóa Tường lửa & Sửa dải cổng mạng
+            Guide to unblocking the Firewall & fixing the network port range
           </button>
           <span v-else class="font-mono text-[9px] text-slate-400 mt-0.5">
             {{ listenerHealthBadge.detail }}
@@ -124,7 +124,7 @@ const emit = defineEmits<{
         <Icon icon="lucide:triangle-alert" class="text-amber-400 text-sm shrink-0" />
         <div class="flex flex-col min-w-0">
           <label class="text-[9px] uppercase tracking-widest font-bold text-amber-300/80"
-            >Chỉ bật trên Wi-Fi tin cậy</label
+            >Only enable on trusted Wi-Fi</label
           >
           <span class="font-mono text-xs font-bold text-slate-300 truncate">
             {{ webClientUrl }}
@@ -142,7 +142,7 @@ const emit = defineEmits<{
       <button
         class="cyber-action-btn font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1.5 flex items-center gap-1.5"
         @click="emit('syncLayout')"
-        title="Đồng bộ cấu hình sang thiết bị Android"
+        title="Sync configuration to Android device"
       >
         <Icon :icon="syncHint ? 'lucide:check' : 'lucide:refresh-cw'" class="text-xs" />
         <span>{{ syncHint || 'Sync' }}</span>
@@ -151,7 +151,7 @@ const emit = defineEmits<{
       <button
         class="cyber-icon-btn cursor-pointer flex items-center justify-center animate-pulse"
         @click="emit('openSettings')"
-        title="Thiết lập hệ thống & Cập nhật"
+        title="System Settings & Updates"
       >
         <Icon
           icon="lucide:settings"

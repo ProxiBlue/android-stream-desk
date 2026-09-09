@@ -51,7 +51,7 @@ export const useUpdaterStore = defineStore("updater", () => {
         return;
       } else {
         state.value = "no-update";
-        if (!opts.silent) showToast("Ứng dụng đã ở phiên bản mới nhất!");
+        if (!opts.silent) showToast("App is already up to date!");
         return;
       }
     } catch (tauriError) {
@@ -74,7 +74,7 @@ export const useUpdaterStore = defineStore("updater", () => {
 
         if (latestVersion === currentVersion) {
           state.value = "no-update";
-          if (!opts.silent) showToast("Ứng dụng đã ở phiên bản mới nhất!");
+          if (!opts.silent) showToast("App is already up to date!");
           return;
         } else {
           update.value = {
@@ -88,7 +88,7 @@ export const useUpdaterStore = defineStore("updater", () => {
           return;
         }
       } catch (e) {
-        errorMsg.value = "Không thể kiểm tra bản cập nhật. Vui lòng kiểm tra lại mạng.";
+        errorMsg.value = "Could not check for updates. Please check your network connection.";
         state.value = "error";
       }
     }

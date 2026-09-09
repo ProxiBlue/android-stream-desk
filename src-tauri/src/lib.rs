@@ -344,12 +344,12 @@ fn open_accessibility_settings() -> Result<(), String> {
         Command::new("open")
             .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
             .spawn()
-            .map_err(|e| format!("Mở System Settings thất bại: {}", e))?;
+            .map_err(|e| format!("Failed to open System Settings: {}", e))?;
         Ok(())
     }
     #[cfg(not(target_os = "macos"))]
     {
-        Err("Chỉ hỗ trợ macOS".to_string())
+        Err("Only supported on macOS".to_string())
     }
 }
 
@@ -485,10 +485,10 @@ fn list_installed_apps_windows() -> Vec<InstalledApp> {
 
     let mut apps: Vec<InstalledApp> = Vec::new();
 
-    // 1. Quét Start Menu Shortcuts (ưu tiên)
+    // 1. Scan Start Menu Shortcuts (preferred)
     apps.extend(scan_start_menu_shortcuts());
 
-    // 2. Quét Registry Uninstall
+    // 2. Scan Registry Uninstall
     for (hive, path) in hives {
         let uninstall_key = match hive.open_subkey_with_flags(path, KEY_READ) {
             Ok(k) => k,
@@ -551,12 +551,12 @@ fn list_installed_apps_windows() -> Vec<InstalledApp> {
         }
     }
 
-    // Deduplicate: Trực quan hóa khóa theo TARGET EXE trần
-    // Ví dụ: "riotclientservices.exe --launch-product=..." và "riotclientservices.exe"
-    // Gộp chung và ưu tiên entry CÓ chứa arguments
+    // Deduplicate: key on the bare TARGET EXE
+    // Example: "riotclientservices.exe --launch-product=..." and "riotclientservices.exe"
+    // Merge these and prefer the entry that HAS arguments
     let mut seen: HashMap<String, InstalledApp> = HashMap::new();
     for app in apps {
-        // Trích xuất tên exe trần làm khóa so khớp trùng
+        // Extract the bare exe name to use as the dedup key
         let clean_exe_key = if app.path.starts_with('"') {
             app.path
                 .split('"')
@@ -574,14 +574,14 @@ fn list_installed_apps_windows() -> Vec<InstalledApp> {
 
         seen.entry(clean_exe_key)
             .and_modify(|existing| {
-                // Nếu entry mới có Arguments (độ dài chuỗi path dài hơn / chứa tham số) thì ưu tiên lưu đè
+                // If the new entry has Arguments (longer path string / contains parameters), prefer overwriting with it
                 let new_has_args = app.path.trim().contains(' ');
                 let ext_has_args = existing.path.trim().contains(' ');
 
                 if new_has_args && !ext_has_args {
                     *existing = app.clone();
                 } else if !new_has_args && !ext_has_args {
-                    // Nếu cả hai đều trần, ưu tiên Start Menu vì tên hiển thị đẹp hơn
+                    // If both are bare, prefer Start Menu since its display name is nicer
                     if app.publisher.as_deref() == Some("Start Menu") {
                         *existing = app.clone();
                     }
@@ -863,10 +863,11 @@ fn parse_shortcut(shortcut: &str) -> Result<(Vec<Key>, Vec<Key>), String> {
 
 #[cfg(desktop)]
 fn enigo_settings() -> Settings {
-    // KHÔNG để enigo tự bật prompt Accessibility của macOS. Mặc định enigo đặt
-    // open_prompt_to_get_permissions = true, nên mỗi lần Enigo::new (kể cả lúc
-    // poll diagnostics) sẽ bung dialog "Accessibility Access" liên tục.
-    // App tự kiểm tra quyền qua native_input_trusted() và hướng dẫn user trong UI.
+    // Do NOT let enigo trigger macOS's Accessibility prompt itself. enigo defaults
+    // open_prompt_to_get_permissions to true, so every Enigo::new call (including
+    // during diagnostics polling) would repeatedly pop the "Accessibility Access"
+    // dialog. The app checks permission itself via native_input_trusted() and
+    // guides the user through the UI instead.
     Settings {
         open_prompt_to_get_permissions: false,
         ..Settings::default()
@@ -878,13 +879,13 @@ fn enigo_init_err(e: impl std::fmt::Display) -> String {
     #[cfg(target_os = "macos")]
     {
         format!(
-            "Không khởi tạo được Enigo: {}. macOS yêu cầu Accessibility permission. Mở System Settings → Privacy & Security → Accessibility. Nếu vừa build lại app, XOÁ entry cũ \"Android Stream Desk\" trong danh sách rồi kéo app mới vào và bật lại (chữ ký thay đổi sau mỗi build).",
+            "Failed to initialize Enigo: {}. macOS requires Accessibility permission. Open System Settings → Privacy & Security → Accessibility. If you just rebuilt the app, REMOVE the old \"Android Stream Desk\" entry from the list, then drag the new app in and re-enable it (the signature changes with every build).",
             e
         )
     }
     #[cfg(not(target_os = "macos"))]
     {
-        format!("Không khởi tạo được Enigo: {}", e)
+        format!("Failed to initialize Enigo: {}", e)
     }
 }
 
@@ -1188,9 +1189,9 @@ fn open_link(raw: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Mở URL ngoài bằng trình duyệt mặc định của OS. Dùng cho các link trong UI
-/// (GitHub, Ko-Fi…) vì Tauri webview không tự mở `<a target="_blank">`.
-/// Tái dùng validate + spawn của `open_link` (chỉ http/https, không credentials).
+/// Opens an external URL with the OS's default browser. Used for links in the UI
+/// (GitHub, Ko-Fi…) because the Tauri webview doesn't open `<a target="_blank">` on its own.
+/// Reuses `open_link`'s validate + spawn (http/https only, no credentials).
 #[cfg(desktop)]
 #[tauri::command]
 fn open_external_link(url: String) -> Result<(), String> {
@@ -1335,8 +1336,8 @@ fn setup_tray(app: &AppHandle) -> tauri::Result<()> {
     use tauri::menu::{Menu, MenuItem};
     use tauri::tray::TrayIconBuilder;
 
-    let show_item = MenuItem::with_id(app, "show", "Mở Dashboard", true, None::<&str>)?;
-    let quit_item = MenuItem::with_id(app, "quit", "Thoát", true, None::<&str>)?;
+    let show_item = MenuItem::with_id(app, "show", "Open Dashboard", true, None::<&str>)?;
+    let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
 
     let mut builder = TrayIconBuilder::with_id("main-tray")

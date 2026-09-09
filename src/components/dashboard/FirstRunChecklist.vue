@@ -20,14 +20,14 @@ const emit = defineEmits<{
         <div class="flex items-center gap-2">
           <Icon icon="lucide:clipboard-list" class="text-base text-cyan-400 shrink-0" />
           <span class="text-[11px] font-bold text-cyan-300 uppercase tracking-wider"
-            >Checklist cài đặt Companion</span
+            >Companion setup checklist</span
           >
         </div>
         <button
           type="button"
           class="cyber-action-btn font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1 flex items-center gap-1.5"
           @click="emit('dismiss')"
-          title="Ẩn vĩnh viễn"
+          title="Hide permanently"
         >
           <Icon icon="lucide:x" class="text-xs" />
           <span>Dismiss</span>
@@ -37,9 +37,9 @@ const emit = defineEmits<{
         <div class="cyber-inset flex items-start gap-2 p-3">
           <Icon icon="lucide:power" class="text-sm text-cyan-400 shrink-0 mt-0.5" />
           <div class="flex flex-col gap-0.5">
-            <span class="text-[10px] font-bold text-slate-200">Khởi động cùng hệ thống</span>
+            <span class="text-[10px] font-bold text-slate-200">Start with system</span>
             <span class="text-[9px] text-slate-500 leading-relaxed"
-              >Bật toggle tự động khởi động trong Settings → General</span
+              >Turn on the auto-start toggle in Settings → General</span
             >
           </div>
         </div>
@@ -48,7 +48,7 @@ const emit = defineEmits<{
           <div class="flex flex-col gap-0.5">
             <span class="text-[10px] font-bold text-slate-200">Firewall / Port Rule</span>
             <span class="text-[9px] text-slate-500 leading-relaxed"
-              >Cho phép cổng WebSocket qua Windows Defender Firewall</span
+              >Allow the WebSocket port through Windows Defender Firewall</span
             >
           </div>
         </div>
@@ -57,16 +57,16 @@ const emit = defineEmits<{
           <div class="flex flex-col gap-0.5">
             <span class="text-[10px] font-bold text-slate-200">Web Client (iPad)</span>
             <span class="text-[9px] text-slate-500 leading-relaxed"
-              >Bật Web Client trong Settings nếu dùng trình duyệt trên iPad</span
+              >Enable Web Client in Settings if using a browser on iPad</span
             >
           </div>
         </div>
         <div class="cyber-inset flex items-start gap-2 p-3">
           <Icon icon="lucide:qr-code" class="text-sm text-emerald-400 shrink-0 mt-0.5" />
           <div class="flex flex-col gap-0.5">
-            <span class="text-[10px] font-bold text-slate-200">Quét QR tải APK</span>
+            <span class="text-[10px] font-bold text-slate-200">Scan QR to download APK</span>
             <span class="text-[9px] text-slate-500 leading-relaxed"
-              >Quét QR bên dưới để tải APK hoặc mở Web URL trên thiết bị Android</span
+              >Scan the QR code below to download the APK, or open the Web URL on your Android device</span
             >
           </div>
         </div>

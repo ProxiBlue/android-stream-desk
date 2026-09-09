@@ -73,15 +73,15 @@ function applyTemplate(cmd: string) {
             </div>
             <div>
               <h2 class="text-xs font-bold text-slate-50 uppercase tracking-wider">
-                Trung tâm trợ giúp (Guide Center)
+                Guide Center
               </h2>
-              <p class="text-[8px] text-slate-500 mt-0.5">Hướng dẫn thiết lập mạng, phím tắt & mở ứng dung nhanh</p>
+              <p class="text-[8px] text-slate-500 mt-0.5">Network setup, shortcuts & quick app launch guide</p>
             </div>
           </div>
           <button
             type="button"
             class="text-slate-400 hover:text-cyan-400 transition-colors cursor-pointer"
-            title="Đóng"
+            title="Close"
             @click="close"
           >
             <Icon icon="lucide:x" class="text-lg" />
@@ -99,7 +99,7 @@ function applyTemplate(cmd: string) {
               @click="activeTab = 'browser'"
             >
               <Icon icon="lucide:chrome" class="text-xs text-cyan-400 shrink-0" />
-              <span>Mở Trình Duyệt Web</span>
+              <span>Open Web Browser</span>
             </button>
             <button
               type="button"
@@ -108,7 +108,7 @@ function applyTemplate(cmd: string) {
               @click="activeTab = 'shortcut'"
             >
               <Icon icon="lucide:external-link" class="text-xs text-cyan-400 shrink-0" />
-              <span>Dán (.lnk) Shortcut</span>
+              <span>Paste (.lnk) Shortcut</span>
             </button>
             <button
               type="button"
@@ -117,7 +117,7 @@ function applyTemplate(cmd: string) {
               @click="activeTab = 'firewall'"
             >
               <Icon icon="lucide:shield-alert" class="text-xs text-rose-450 shrink-0 animate-pulse" />
-              <span>Tường Lửa & Cổng mạng</span>
+              <span>Firewall & Network Ports</span>
             </button>
           </nav>
 
@@ -127,10 +127,10 @@ function applyTemplate(cmd: string) {
             <div v-if="activeTab === 'browser'" class="flex flex-col gap-4">
               <div>
                 <h3 class="text-[11px] font-bold text-slate-205 uppercase tracking-wide mb-1 text-cyan-400">
-                  Tự động mở trình duyệt Web
+                  Automatically Open Web Browser
                 </h3>
                 <p class="text-[9px] text-slate-400 leading-relaxed">
-                  Thiết lập macro để tự động kích hoạt trình duyệt web Google Chrome và truy cập vào đường dẫn định sẵn. Dưới đây là các câu lệnh mẫu dùng cho mục gán <strong>Lệnh shell (Command)</strong>.
+                  Set up a macro to automatically launch the Google Chrome web browser and navigate to a preset URL. Below are sample commands to use for the <strong>Shell Command</strong> field.
                 </p>
               </div>
 
@@ -142,14 +142,14 @@ function applyTemplate(cmd: string) {
                 <div class="flex items-center justify-between">
                   <span class="text-[9px] font-bold uppercase flex items-center gap-1" :class="isMac ? 'text-cyan-400' : 'text-slate-400'">
                     <Icon icon="lucide:apple" /> macOS
-                    <span v-if="isMac" class="ml-1 px-1.5 py-0.5 text-[8px] bg-cyan-500/20 text-cyan-400 rounded-full font-semibold normal-case">Đang sử dụng</span>
+                    <span v-if="isMac" class="ml-1 px-1.5 py-0.5 text-[8px] bg-cyan-500/20 text-cyan-400 rounded-full font-semibold normal-case">In Use</span>
                   </span>
                   <button
                     type="button"
                     class="use-template-btn text-[9px] font-bold px-2 py-1 rounded border border-cyan-400 cursor-pointer"
                     @click="applyTemplate(macCommand)"
                   >
-                    Dùng mẫu này
+                    Use This Template
                   </button>
                 </div>
                 <code class="text-[10px] font-mono bg-black/40 p-2 rounded block whitespace-pre-wrap select-all select-text border border-black/40">
@@ -165,14 +165,14 @@ function applyTemplate(cmd: string) {
                 <div class="flex items-center justify-between">
                   <span class="text-[9px] font-bold uppercase flex items-center gap-1" :class="!isMac ? 'text-cyan-400' : 'text-slate-400'">
                     <Icon icon="lucide:monitor" /> Windows
-                    <span v-if="!isMac" class="ml-1 px-1.5 py-0.5 text-[8px] bg-cyan-500/20 text-cyan-400 rounded-full font-semibold normal-case">Đang sử dụng</span>
+                    <span v-if="!isMac" class="ml-1 px-1.5 py-0.5 text-[8px] bg-cyan-500/20 text-cyan-400 rounded-full font-semibold normal-case">In Use</span>
                   </span>
                   <button
                     type="button"
                     class="use-template-btn text-[9px] font-bold px-2 py-1 rounded border border-cyan-400 cursor-pointer"
                     @click="applyTemplate(winCommand)"
                   >
-                    Dùng mẫu này
+                    Use This Template
                   </button>
                 </div>
                 <code class="text-[10px] font-mono bg-black/40 p-2 rounded block whitespace-pre-wrap select-all select-text border border-black/40">
@@ -185,10 +185,10 @@ function applyTemplate(cmd: string) {
             <div v-else-if="activeTab === 'shortcut'" class="flex flex-col gap-4 text-[9px] leading-relaxed">
               <div>
                 <h3 class="text-[11px] font-bold text-slate-205 uppercase tracking-wide mb-1 text-cyan-400">
-                  Phím tắt ứng dụng & Copy as path
+                  App Shortcuts & Copy as Path
                 </h3>
                 <p class="text-slate-400">
-                  Hướng dẫn chi tiết cách kéo thả phím tắt (.lnk) hoặc lấy đường dẫn tệp tin ứng dụng chính xác trên Windows để Companion tự động phân tích và kích hoạt nhanh.
+                  Detailed guide on how to drag and drop an app shortcut (.lnk) or get the exact file path on Windows so Companion can automatically parse it and launch it quickly.
                 </p>
               </div>
 
@@ -197,32 +197,32 @@ function applyTemplate(cmd: string) {
                 <div class="step-card flex gap-3 p-2.5 rounded bg-slate-900/30 border border-slate-800">
                   <span class="step-num text-xs font-bold text-cyan-400 w-5 h-5 rounded-full bg-cyan-500/10 flex items-center justify-center shrink-0">1</span>
                   <div>
-                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Tìm phím tắt ứng dụng (.lnk) hoặc file gốc (.exe)</span>
-                    <span class="text-slate-400">Mở File Explorer, tìm đến phím tắt ngoài Desktop hoặc trong thư mục cài đặt gốc.</span>
+                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Find the app shortcut (.lnk) or original file (.exe)</span>
+                    <span class="text-slate-400">Open File Explorer and locate the shortcut on the Desktop or in the original install folder.</span>
                   </div>
                 </div>
 
                 <div class="step-card flex gap-3 p-2.5 rounded bg-slate-900/30 border border-slate-800">
                   <span class="step-num text-xs font-bold text-cyan-400 w-5 h-5 rounded-full bg-cyan-500/10 flex items-center justify-center shrink-0">2</span>
                   <div>
-                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Sao chép đường dẫn (Copy as path)</span>
-                    <span class="text-slate-400">Chuột phải vào tệp phím tắt, chọn <strong>"Copy as path"</strong> (hoặc giữ phím <code>Shift</code> + chuột phải và chọn "Copy as path" trên phiên bản Windows 10 trở xuống).</span>
+                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Copy the Path (Copy as Path)</span>
+                    <span class="text-slate-400">Right-click the shortcut file and select <strong>"Copy as path"</strong> (or hold <code>Shift</code> + right-click and select "Copy as path" on Windows 10 and earlier).</span>
                   </div>
                 </div>
 
                 <div class="step-card flex gap-3 p-2.5 rounded bg-slate-900/30 border border-slate-800">
                   <span class="step-num text-xs font-bold text-cyan-400 w-5 h-5 rounded-full bg-cyan-500/10 flex items-center justify-center shrink-0">3</span>
                   <div>
-                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Chuyển sang tab cấu hình App</span>
-                    <span class="text-slate-400">Click chọn ô lưới muốn gán ở Companion, tạo/chuyển qua tab cấu hình loại <strong>"App"</strong>.</span>
+                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Switch to the App Configuration Tab</span>
+                    <span class="text-slate-400">Click the grid cell you want to assign in Companion, then create or switch to the <strong>"App"</strong> configuration tab.</span>
                   </div>
                 </div>
 
                 <div class="step-card flex gap-3 p-2.5 rounded bg-slate-900/30 border border-slate-800">
                   <span class="step-num text-xs font-bold text-cyan-400 w-5 h-5 rounded-full bg-cyan-500/10 flex items-center justify-center shrink-0">4</span>
                   <div>
-                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Dán đường dẫn và lưu trữ</span>
-                    <span class="text-slate-400">Dán (Ctrl + V) trực tiếp vào ô nhập đường dẫn. Client tự động loại bỏ dấu ngoặc kép kép nếu có và thực hiện mở rộng tệp logic dưới backend khi kích hoạt.</span>
+                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Paste the Path and Save</span>
+                    <span class="text-slate-400">Paste (Ctrl + V) directly into the path input field. The client automatically strips surrounding double quotes if present and handles the file-launch logic on the backend when activated.</span>
                   </div>
                 </div>
               </div>
@@ -233,10 +233,10 @@ function applyTemplate(cmd: string) {
               <div>
                 <h3 class="text-[11px] font-bold text-rose-400 uppercase tracking-wide mb-1 flex items-center gap-1.5">
                   <Icon icon="lucide:shield-alert" class="text-xs shrink-0" />
-                  Khắc phục lỗi Tường lửa & Trùng cổng mạng
+                  Fixing Firewall Errors & Port Conflicts
                 </h3>
                 <p class="text-slate-400">
-                  Khi socket Companion bị chặn hoặc đụng độ cổng mạng (Address already in use), thiết bị nhận tin của bạn sẽ hiển thị ngoại tuyến.
+                  When the Companion socket is blocked or there's a port conflict (Address already in use), your receiving device will show as offline.
                 </p>
               </div>
 
@@ -245,24 +245,24 @@ function applyTemplate(cmd: string) {
                 <div class="step-card flex gap-3 p-2.5 rounded bg-slate-900/30 border border-slate-800">
                   <span class="step-num text-xs font-bold text-rose-450 w-5 h-5 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0">1</span>
                   <div>
-                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Cho phép Companion qua Windows Defender Firewall</span>
-                    <span class="text-slate-400">Khi khởi chạy Companion lần đầu, hãy click <strong>"Allow access"</strong> trên bảng thông báo Windows. Nếu đã lỡ bỏ qua, hãy vào <em>Control Panel -> Windows Defender Firewall -> Allow an app through firewall</em>, tìm <code>android-stream-desk</code> và bật tick chọn cho cả <strong>Private</strong> và <strong>Public</strong>.</span>
+                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Allow Companion Through Windows Defender Firewall</span>
+                    <span class="text-slate-400">When you first launch Companion, click <strong>"Allow access"</strong> on the Windows notification prompt. If you accidentally dismissed it, go to <em>Control Panel -> Windows Defender Firewall -> Allow an app through firewall</em>, find <code>android-stream-desk</code>, and check the box for both <strong>Private</strong> and <strong>Public</strong>.</span>
                   </div>
                 </div>
 
                 <div class="step-card flex gap-3 p-2.5 rounded bg-slate-900/30 border border-slate-800">
                   <span class="step-num text-xs font-bold text-rose-400 w-5 h-5 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0">2</span>
                   <div>
-                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Thay đổi số cổng WebSocket (Port Conflict)</span>
-                    <span class="text-slate-400">Nếu có ứng dụng khác đang chiếm dụng cổng mặc định 8089, bạn cần đổi sang một cổng khác hoạt động (ví dụ: 8090, 8092, v.v.). Đi tới phần <strong>Cài đặt kết nối hệ thống Companion</strong> bên dưới mục trạng thái mạng của Dashboard để sửa lại cổng và lưu.</span>
+                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Change the WebSocket Port Number (Port Conflict)</span>
+                    <span class="text-slate-400">If another application is using the default port 8089, you'll need to switch to a different working port (e.g. 8090, 8092, etc.). Go to the <strong>Companion Connection Settings</strong> section below the network status in the Dashboard to change the port and save.</span>
                   </div>
                 </div>
 
                 <div class="step-card flex gap-3 p-2.5 rounded bg-slate-900/30 border border-slate-800">
                   <span class="step-num text-xs font-bold text-rose-400 w-5 h-5 rounded-full bg-rose-500/10 flex items-center justify-center shrink-0">3</span>
                   <div>
-                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Xác nhận Wi-Fi & LAN cùng subnet (AP isolation)</span>
-                    <span class="text-slate-400">Đảm bảo cả máy tính Companion lẫn thiết bị Android Client của bạn kết nối vào cùng 1 Router/Access Point mạng LAN. Hãy tắt chế độ "AP Isolation / Guest Network" nếu được bật trên router của bạn.</span>
+                    <span class="font-bold text-slate-200 block text-[10px] mb-0.5">Confirm Wi-Fi & LAN Are on the Same Subnet (AP Isolation)</span>
+                    <span class="text-slate-400">Make sure both the Companion computer and your Android Client device are connected to the same Router/Access Point on the LAN. Disable "AP Isolation / Guest Network" mode if it's enabled on your router.</span>
                   </div>
                 </div>
               </div>

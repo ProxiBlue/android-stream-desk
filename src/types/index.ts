@@ -9,23 +9,23 @@ export interface MonitorConfig {
 export interface ButtonConfig {
   id: string;
   label: string;
-  icon: string; // Thay thế emoji bằng icon (e.g., "mdi:play", "lucide:settings")
-  emoji?: string; // Tương thích ngược cấu hình cũ
+  icon: string; // Replaces emoji with an icon (e.g., "mdi:play", "lucide:settings")
+  emoji?: string; // Backward compatibility with old config
   backgroundColor: string;
   actionType: ActionType;
   buttonKind?: 'action' | 'monitor';
   monitorConfig?: MonitorConfig;
-  // Cho 'shortcut': ví dụ "Ctrl+Shift+Tab" hoặc phím rời như "Play"
+  // For 'shortcut': e.g. "Ctrl+Shift+Tab" or a standalone key like "Play"
   shortcutValue?: string;
-  // Cho 'media': play_pause, volume_up, volume_down, mute, next, prev
+  // For 'media': play_pause, volume_up, volume_down, mute, next, prev
   mediaAction?: string;
-  // Cho 'app': path tới file .exe ví dụ "C:\\Windows\\notepad.exe"
+  // For 'app': path to the .exe file, e.g. "C:\\Windows\\notepad.exe"
   appPath?: string;
-  // Cho 'command': chuỗi shell thô (sh -c hoặc cmd /C), chạy với quyền user
+  // For 'command': raw shell string (sh -c or cmd /C), runs with user privileges
   commandValue?: string;
-  // Cho 'link': URL http(s) — mở bằng default browser của OS (Windows `cmd /c start ""`, macOS `open`, Linux `xdg-open`)
+  // For 'link': http(s) URL — opens with the OS default browser (Windows `cmd /c start ""`, macOS `open`, Linux `xdg-open`)
   linkUrl?: string;
-  // Cho custom icon rendering configuration (cover, contain, fill, normal)
+  // For custom icon rendering configuration (cover, contain, fill, normal)
   iconSizing?: 'normal' | 'cover' | 'contain' | 'fill';
   genshinFrame?: number;
 }

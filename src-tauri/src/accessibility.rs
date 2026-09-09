@@ -40,8 +40,8 @@ pub fn get_input_permission_diagnostics(app_handle: &AppHandle) -> InputPermissi
 }
 
 pub fn resolve_app_bundle_path(executable_path: &Path) -> Option<PathBuf> {
-    // Chỉ coi là packaged khi đúng layout `<Bundle>.app/Contents/MacOS/<exe>`.
-    // Tránh false positive với thư mục cha tình cờ tên `*.app` (vd `/Users/foo.app/...`).
+    // Only treat this as packaged when the layout is exactly `<Bundle>.app/Contents/MacOS/<exe>`.
+    // Avoids false positives from a parent directory that happens to be named `*.app` (e.g. `/Users/foo.app/...`).
     let macos_dir = executable_path.parent()?;
     if macos_dir.file_name().and_then(|value| value.to_str()) != Some("MacOS") {
         return None;
@@ -69,11 +69,12 @@ fn recommend_action(
     } else if trusted {
         RecommendedAction::Allow
     } else if is_packaged_app {
-        // Packaged `.app`: rebuild đổi chữ ký → macOS coi là app khác,
-        // entry TCC cũ vô dụng → cần xoá entry stale trước khi allow lại.
+        // Packaged `.app`: rebuilding changes the code signature -> macOS treats it
+        // as a different app, so the old TCC entry is useless -> the stale entry
+        // must be removed before it can be allowed again.
         RecommendedAction::RemoveStaleEntry
     } else {
-        // Dev binary path `target/debug` ổn định → chỉ cần mở Settings allow.
+        // Dev binary path `target/debug` is stable -> just needs Settings opened to allow it.
         RecommendedAction::OpenSettings
     }
 }
@@ -180,7 +181,7 @@ mod tests {
 
     #[test]
     fn resolve_app_bundle_path_ignores_app_named_ancestor_dir() {
-        // Thư mục cha tình cờ tên `*.app` nhưng không phải bundle layout.
+        // A parent directory that happens to be named `*.app` but isn't a bundle layout.
         let executable = Path::new("/Users/foo.app/dev/target/debug/android-stream-desk");
 
         let bundle_path = resolve_app_bundle_path(executable);

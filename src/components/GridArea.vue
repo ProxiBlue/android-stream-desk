@@ -120,8 +120,9 @@ watch(
   { flush: 'post' }
 );
 
-// Fit mode đổi padding/gap → clientWidth đổi nhưng không bắn resize event, nên
-// scrollLeft (px) lệch khỏi mép trang. nextTick chờ layout mới rồi realign.
+// Fit mode changes padding/gap → clientWidth changes but doesn't fire a resize
+// event, so scrollLeft (px) drifts from the page edge. nextTick waits for the
+// new layout then realigns.
 watch(fitMode, () => {
   nextTick(() => scrollToIndex(layoutStore.currentPageIndex));
 });
