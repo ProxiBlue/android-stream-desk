@@ -1,0 +1,18 @@
+[Unit]
+Description=Android Stream Desk Companion
+# This is a --user unit (runs in your desktop session, not at boot) since
+# the Companion is a GUI app (system tray icon, dashboard window) — it
+# needs your desktop session's display, same as any other tray app.
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# Adjust this path to wherever you keep the AppImage — %h expands to your
+# home directory. See ../../docs/LINUX_USB_MODE.md for the install step.
+ExecStart=%h/Applications/android-stream-desk.AppImage
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target
