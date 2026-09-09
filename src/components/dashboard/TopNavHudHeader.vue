@@ -1,5 +1,44 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n({
+  useScope: 'local',
+  messages: {
+    en: {
+      header: {
+        logoAlt: 'Logo',
+        appName: 'Android Stream Desk',
+        tagline: 'companion control panel',
+        wsLanIp: 'WebSocket LAN IP',
+        copy: 'Copy',
+        connected: 'Connected',
+        devicesCount: '{count} devices',
+        firewallGuide: 'Guide to unblocking the Firewall & fixing the network port range',
+        trustedWifiOnly: 'Only enable on trusted Wi-Fi',
+        syncTitle: 'Sync configuration to Android device',
+        sync: 'Sync',
+        settingsTitle: 'System Settings & Updates',
+      },
+    },
+    vi: {
+      header: {
+        logoAlt: 'Logo',
+        appName: 'Android Stream Desk',
+        tagline: 'companion control panel',
+        wsLanIp: 'WebSocket LAN IP',
+        copy: 'Copy',
+        connected: 'Đang kết nối',
+        devicesCount: '{count} thiết bị',
+        firewallGuide: 'Hướng dẫn mở khóa Tường lửa & Sửa dải cổng mạng',
+        trustedWifiOnly: 'Chỉ bật trên Wi-Fi tin cậy',
+        syncTitle: 'Đồng bộ cấu hình sang thiết bị Android',
+        sync: 'Sync',
+        settingsTitle: 'Thiết lập hệ thống & Cập nhật',
+      },
+    },
+  },
+});
 
 defineProps<{
   serverIp: string;
@@ -36,11 +75,11 @@ const emit = defineEmits<{
     class="cyber-panel flex flex-col md:flex-row gap-3 md:items-center md:justify-between px-4 py-2.5 shadow-xl"
   >
     <div class="flex items-center gap-2">
-      <img src="/logo.png" alt="Logo" class="h-8 w-8" />
+      <img src="/logo.png" :alt="t('header.logoAlt')" class="h-8 w-8" />
       <div class="flex flex-col leading-none">
-        <span class="text-xs font-bold tracking-tight text-slate-50">Android Stream Desk</span>
+        <span class="text-xs font-bold tracking-tight text-slate-50">{{ t('header.appName') }}</span>
         <span class="text-[8.5px] text-cyan-400/60 font-bold tracking-wider uppercase mt-0.5"
-          >companion control panel</span
+          >{{ t('header.tagline') }}</span
         >
       </div>
     </div>
@@ -53,7 +92,7 @@ const emit = defineEmits<{
         ></span>
         <div class="flex flex-col">
           <label class="text-[9px] uppercase tracking-widest font-bold text-slate-500"
-            >WebSocket LAN IP</label
+            >{{ t('header.wsLanIp') }}</label
           >
           <span class="font-mono text-xs font-bold text-slate-300">
             {{ serverIp }}<span class="text-slate-600">:</span>{{ serverPort }}
@@ -64,7 +103,7 @@ const emit = defineEmits<{
           @click="emit('copyAddress')"
           :disabled="serverIp === '—'"
         >
-          {{ copyHint || 'Copy' }}
+          {{ copyHint || t('header.copy') }}
         </button>
       </div>
 
@@ -77,13 +116,13 @@ const emit = defineEmits<{
         />
         <div class="flex flex-col">
           <label class="text-[9px] uppercase tracking-widest font-bold text-slate-500"
-            >Connected</label
+            >{{ t('header.connected') }}</label
           >
           <span
             class="font-mono text-xs font-bold"
             :class="activeConnectionsCount > 0 ? 'text-emerald-300' : 'text-slate-500'"
           >
-            {{ activeConnectionsCount }} devices
+            {{ t('header.devicesCount', { count: activeConnectionsCount }) }}
           </span>
         </div>
       </div>
@@ -109,7 +148,7 @@ const emit = defineEmits<{
             class="text-[8px] text-slate-400 hover:text-cyan-400 transition-colors text-left underline decoration-dotted cursor-pointer font-medium mt-0.5 truncate"
             @click="emit('openGuide', 'firewall')"
           >
-            Guide to unblocking the Firewall & fixing the network port range
+            {{ t('header.firewallGuide') }}
           </button>
           <span v-else class="font-mono text-[9px] text-slate-400 mt-0.5">
             {{ listenerHealthBadge.detail }}
@@ -124,7 +163,7 @@ const emit = defineEmits<{
         <Icon icon="lucide:triangle-alert" class="text-amber-400 text-sm shrink-0" />
         <div class="flex flex-col min-w-0">
           <label class="text-[9px] uppercase tracking-widest font-bold text-amber-300/80"
-            >Only enable on trusted Wi-Fi</label
+            >{{ t('header.trustedWifiOnly') }}</label
           >
           <span class="font-mono text-xs font-bold text-slate-300 truncate">
             {{ webClientUrl }}
@@ -134,7 +173,7 @@ const emit = defineEmits<{
           class="cyber-action-btn ml-1 font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1 shrink-0"
           @click="emit('copyWebClientUrl')"
         >
-          {{ webCopyHint || 'Copy' }}
+          {{ webCopyHint || t('header.copy') }}
         </button>
       </div>
 
@@ -142,16 +181,16 @@ const emit = defineEmits<{
       <button
         class="cyber-action-btn font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1.5 flex items-center gap-1.5"
         @click="emit('syncLayout')"
-        title="Sync configuration to Android device"
+        :title="t('header.syncTitle')"
       >
         <Icon :icon="syncHint ? 'lucide:check' : 'lucide:refresh-cw'" class="text-xs" />
-        <span>{{ syncHint || 'Sync' }}</span>
+        <span>{{ syncHint || t('header.sync') }}</span>
       </button>
 
       <button
         class="cyber-icon-btn cursor-pointer flex items-center justify-center animate-pulse"
         @click="emit('openSettings')"
-        title="System Settings & Updates"
+        :title="t('header.settingsTitle')"
       >
         <Icon
           icon="lucide:settings"

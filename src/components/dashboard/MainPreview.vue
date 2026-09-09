@@ -1,9 +1,32 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useLayoutStore } from '../../stores/layout';
 import { vDraggable } from 'vue-draggable-plus';
 import GridButton from '../GridButton.vue';
 import { Icon } from '@iconify/vue';
+
+const { t } = useI18n({
+  useScope: 'local',
+  messages: {
+    en: {
+      preview: {
+        modelLabel: 'Realistic touch Stream Desk model',
+        pageNumber: 'Page {number}',
+        removePage: 'Remove page',
+        addNewPage: 'Add new page',
+      },
+    },
+    vi: {
+      preview: {
+        modelLabel: 'Mô hình Stream Desk cảm ứng thực tế',
+        pageNumber: 'Trang {number}',
+        removePage: 'Xóa trang',
+        addNewPage: 'Thêm trang mới',
+      },
+    },
+  },
+});
 
 const props = defineProps<{
   selectedButtonId: string | null;
@@ -40,7 +63,7 @@ const aspectRatio = computed(() => {
     <span
       class="absolute top-6 left-8 text-[10px] font-bold uppercase tracking-widest text-cyan-400/50 select-none"
     >
-      Realistic touch Stream Desk model
+      {{ t('preview.modelLabel') }}
       {{ props.clientDeviceName ? `(${props.clientDeviceName})` : '' }}
     </span>
 
@@ -92,13 +115,13 @@ const aspectRatio = computed(() => {
             @input="layoutStore.renamePage(idx, ($event.target as HTMLInputElement).value)"
             @click.stop
           />
-          <span v-else>Page {{ idx + 1 }}</span>
+          <span v-else>{{ t('preview.pageNumber', { number: idx + 1 }) }}</span>
 
           <!-- Remove Page tab button -->
           <button
             v-if="layoutStore.layout.pages.length > 1"
             class="text-xs hover:text-rose-500 transition-colors p-0.5 rounded cursor-pointer"
-            title="Remove page"
+            :title="t('preview.removePage')"
             @click.stop="layoutStore.removePage(idx)"
           >
             <Icon icon="lucide:x" class="text-[9px]" />
@@ -108,7 +131,7 @@ const aspectRatio = computed(() => {
         <!-- Add Page Button -->
         <button
           class="w-6 h-6 flex items-center justify-center rounded-lg border border-dashed border-slate-700 hover:border-cyan-500/50 text-slate-500 hover:text-cyan-400 bg-slate-900/10 transition-all duration-200 cursor-pointer"
-          title="Add new page"
+          :title="t('preview.addNewPage')"
           @click="layoutStore.addPage()"
         >
           <Icon icon="lucide:plus" class="text-xs" />
