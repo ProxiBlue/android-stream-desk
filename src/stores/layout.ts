@@ -106,7 +106,7 @@ const defaultLayout = (): Layout => {
     },
     {
       id: 'btn_3',
-      label: 'Chụp hình',
+      label: 'Screenshot',
       icon: 'lucide:camera',
       backgroundColor: '#2563eb',
       actionType: 'shortcut',
@@ -114,7 +114,7 @@ const defaultLayout = (): Layout => {
     },
     {
       id: 'btn_4',
-      label: 'Tìm kiếm',
+      label: 'Search',
       icon: 'lucide:search',
       backgroundColor: '#4f46e5',
       actionType: 'shortcut',
@@ -130,7 +130,7 @@ const defaultLayout = (): Layout => {
     },
     {
       id: 'btn_6',
-      label: 'Âm lượng (+)',
+      label: 'Volume (+)',
       icon: 'lucide:volume-2',
       backgroundColor: '#059669',
       actionType: 'media',
@@ -138,7 +138,7 @@ const defaultLayout = (): Layout => {
     },
     {
       id: 'btn_7',
-      label: 'Âm lượng (-)',
+      label: 'Volume (-)',
       icon: 'lucide:volume-1',
       backgroundColor: '#059669',
       actionType: 'media',
@@ -154,7 +154,7 @@ const defaultLayout = (): Layout => {
     },
     {
       id: 'btn_9',
-      label: 'Khóa máy',
+      label: 'Lock screen',
       icon: 'lucide:lock',
       backgroundColor: '#e11d48',
       actionType: 'shortcut',
@@ -335,7 +335,7 @@ export const useLayoutStore = defineStore('layout', () => {
     }
     const newPage: Page = {
       id: pageId,
-      name: `Trang ${layout.value.pages.length + 1}`,
+      name: `Page ${layout.value.pages.length + 1}`,
       buttons,
     };
     layout.value.pages.push(newPage);
@@ -405,7 +405,7 @@ export const useLayoutStore = defineStore('layout', () => {
       } else if (message.type === 'toast' && message.payload) {
         lastToast.value = {
           kind: message.payload.kind === 'info' ? 'info' : 'error',
-          message: message.payload.error || message.payload.message || 'Lỗi không xác định',
+          message: message.payload.error || message.payload.message || 'Unknown error',
           at: Date.now(),
         };
       }
@@ -446,7 +446,7 @@ export const useLayoutStore = defineStore('layout', () => {
           defaultPath: defaultName,
           filters: [{ name: 'JSON', extensions: ['json'] }],
         });
-        if (!path) return false; // user hủy
+        if (!path) return false; // user cancelled
         await invoke('export_layout_to_path', { path, layout: layout.value });
         return true;
       } catch (err) {
@@ -454,7 +454,7 @@ export const useLayoutStore = defineStore('layout', () => {
         throw err;
       }
     }
-    // web fallback: blob + anchor (GIỮ NGUYÊN)
+    // web fallback: blob + anchor (unchanged)
     const json = JSON.stringify(layout.value, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -471,11 +471,11 @@ export const useLayoutStore = defineStore('layout', () => {
   const importLayout = async (file: File): Promise<void> => {
     const text = await file.text();
     const parsed = JSON.parse(text);
-    if (!parsed || typeof parsed !== 'object') throw new Error('JSON không hợp lệ');
+    if (!parsed || typeof parsed !== 'object') throw new Error('Invalid JSON');
     if (typeof parsed.rows !== 'number' || typeof parsed.cols !== 'number') {
-      throw new Error('Thiếu trường rows/cols');
+      throw new Error('Missing rows/cols fields');
     }
-    if (!Array.isArray(parsed.buttons)) throw new Error('Thiếu mảng buttons');
+    if (!Array.isArray(parsed.buttons)) throw new Error('Missing buttons array');
 
     const sanitized: ButtonConfig[] = parsed.buttons.map((b: any, i: number) => sanitizeButton(b, i));
 

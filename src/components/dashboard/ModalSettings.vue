@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
 import { useUpdaterStore } from '../../stores/updater';
 import { FONT_TIER_CLASS } from '../../lib/typography';
 import type { ThemeName } from '../../lib/themes';
+import { i18n, setLocale, type SupportedLocale } from '../../i18n';
 import ModalThemeSelector from './ModalThemeSelector.vue';
 import Input from '../ui/Input.vue';
 
@@ -63,18 +65,238 @@ const updaterStore = useUpdaterStore();
 const activeSettingsGroup = ref<SettingsGroupId>('general');
 const typographyClass = FONT_TIER_CLASS;
 
-const settingsGroups: Array<{ id: SettingsGroupId; label: string; icon: string }> = [
-  { id: 'general', label: 'General', icon: 'lucide:sliders-horizontal' },
-  { id: 'network', label: 'Network', icon: 'lucide:wifi' },
-  { id: 'client-qr', label: 'Client & QR', icon: 'lucide:qr-code' },
-  { id: 'permissions', label: 'Permissions', icon: 'lucide:shield-check' },
-  { id: 'updates', label: 'Updates', icon: 'lucide:refresh-cw' },
-  { id: 'import-export', label: 'Import/Export', icon: 'lucide:database' },
-  { id: 'about', label: 'About/Support', icon: 'lucide:info' },
-];
+const activeLocale = computed<SupportedLocale>({
+  get: () => i18n.global.locale.value as SupportedLocale,
+  set: (value) => setLocale(value),
+});
+
+// SHARED-MESSAGES MARKER: this file's other hardcoded strings get folded
+// into this same `messages` object (under matching `en`/`vi` keys) rather
+// than each getting their own separate useI18n() call.
+const { t } = useI18n({
+  useScope: 'local',
+  messages: {
+    en: {
+      settings: {
+        language: { label: 'Language', en: 'English', vi: 'Vietnamese' },
+      },
+      modal: {
+        title: 'Settings & System Information',
+        subtitle: 'Auto configuration, updater, and software license',
+        close: 'Close',
+      },
+      nav: {
+        ariaLabel: 'Settings groups',
+      },
+      groups: {
+        general: 'General',
+        network: 'Network',
+        clientQr: 'Client & QR',
+        permissions: 'Permissions',
+        updates: 'Updates',
+        importExport: 'Import/Export',
+        about: 'About/Support',
+      },
+      general: {
+        theme: 'Theme',
+        autostart: 'Autostart',
+        startWithSystem: 'Start with system:',
+        startWithSystemHint: 'Run hidden in the system tray on startup',
+        on: 'On',
+        off: 'Off',
+      },
+      network: {
+        currentlyRunningPort: 'Currently Running Port',
+        portAfterRestart: 'Port After Restart',
+        httpWebClientPort: 'HTTP Web Client Port',
+        webOn: 'Web On',
+        webOff: 'Web Off',
+        saving: 'Saving...',
+        saveAndRestart: 'Save and Restart',
+      },
+      clientQr: {
+        trustedWifiOnly: 'Only enable on trusted Wi-Fi',
+        copyWebUrl: 'Copy Web URL',
+        zoomTitle: 'Click to zoom in on the QR code',
+        zoomAria: 'Web Client QR code. Press Enter or Space to zoom in.',
+        openOnIpadBrowser: 'Open on iPad / Browser',
+        enableWebClientPrefix: 'Enable',
+        enableWebClientMid: 'in the',
+        enableWebClientSuffix: 'group to generate a URL + QR code for iPad/Browser.',
+      },
+      permissions: {
+        accessibilityLabel: 'Accessibility (macOS):',
+        accessibilityDesc:
+          'Required to send keyboard shortcuts to the focused app. If not enabled, open System Settings and enable it for the running binary.',
+        openSettingsTitle: 'Open Accessibility Settings',
+        openSystemSettings: 'Open System Settings',
+        detailsPrefix: 'For executablePath / bundle identifier details, see',
+        detailsBold: 'Accessibility recovery',
+        detailsSuffix: 'above on the dashboard.',
+      },
+      updates: {
+        updateLog: 'Update Log:',
+        readyToCheck: 'Ready to check',
+        check: 'Check',
+        checking: 'Checking for updates…',
+        upToDate: 'The app is on the latest version.',
+        updateReady: 'Update v{version} is ready.',
+        downloadingPct: 'Downloading… {pct}%',
+        downloadComplete: 'Download complete — installing now.',
+        checkFailed: 'Update check failed.',
+        updateAvailableText:
+          'A new update v{version} is available. Would you like to download and install it automatically?',
+        openDownloadPage: 'Open download page →',
+        downloadAndUpgrade: 'Download & upgrade automatically',
+        downloadingEllipsis: 'Downloading...',
+      },
+      importExport: {
+        exportImportLabel: 'Export/Import layout data:',
+        exportImportHint: 'Download or upload a JSON file of the key grid configuration',
+        exportTitle: 'Export the current configuration to a JSON file',
+        exportBtn: 'Export',
+        importTitle: 'Load configuration from a JSON file',
+        importBtn: 'Import',
+      },
+      about: {
+        softwareName: 'Software Name:',
+        appName: 'Android Stream Desk',
+        currentVersion: 'Current Version:',
+        author: 'Author:',
+        authorValue: 'aniadev',
+        license: 'License:',
+        licenseValue: 'MIT License',
+        sourceCode: 'Source Code:',
+        githubRepo: 'GitHub Repo',
+        supportDeveloper: 'Support the developer',
+        supportText:
+          'This project is completely free & open source. Buy the author a coffee if you find this app useful!',
+        buyCoffee: 'Buy me a coffee (Ko-Fi)',
+        momoZoomTitle: 'Click to zoom in on the MoMo QR code',
+        momoZoomAria: 'MoMo QR code. Click to zoom in.',
+        supportViaMomo: 'Support via MoMo',
+        momoAlt: 'MoMo QR',
+        scanMomo: 'Scan MoMo',
+      },
+    },
+    vi: {
+      settings: {
+        language: { label: 'Ngôn ngữ', en: 'Tiếng Anh', vi: 'Tiếng Việt' },
+      },
+      modal: {
+        title: 'Thiết lập & thông tin hệ thống',
+        subtitle: 'Tự động cấu hình, updater và giấy phép phần mềm',
+        close: 'Đóng',
+      },
+      nav: {
+        ariaLabel: 'Settings groups',
+      },
+      groups: {
+        general: 'General',
+        network: 'Network',
+        clientQr: 'Client & QR',
+        permissions: 'Permissions',
+        updates: 'Updates',
+        importExport: 'Import/Export',
+        about: 'About/Support',
+      },
+      general: {
+        theme: 'Giao diện',
+        autostart: 'Tự khởi động',
+        startWithSystem: 'Khởi động cùng hệ thống:',
+        startWithSystemHint: 'Chạy ẩn vào khay hệ thống (tray) khi bật máy',
+        on: 'Bật',
+        off: 'Tắt',
+      },
+      network: {
+        currentlyRunningPort: 'Cổng đang chạy',
+        portAfterRestart: 'Cổng sau khi khởi động lại',
+        httpWebClientPort: 'Port HTTP Web Client',
+        webOn: 'Web bật',
+        webOff: 'Web tắt',
+        saving: 'Đang lưu...',
+        saveAndRestart: 'Lưu và khởi động lại',
+      },
+      clientQr: {
+        trustedWifiOnly: 'Chỉ bật trên Wi-Fi tin cậy',
+        copyWebUrl: 'Copy Web URL',
+        zoomTitle: 'Click để phóng to mã QR',
+        zoomAria: 'Mã QR Web Client. Nhấn Enter hoặc Space để phóng to.',
+        openOnIpadBrowser: 'Mở trên iPad / Browser',
+        enableWebClientPrefix: 'Bật',
+        enableWebClientMid: 'trong nhóm',
+        enableWebClientSuffix: 'để sinh URL + QR cho iPad/Browser.',
+      },
+      permissions: {
+        accessibilityLabel: 'Accessibility (macOS):',
+        accessibilityDesc:
+          'Cần thiết để gửi phím tắt vào app đang focus. Nếu chưa bật, mở System Settings và bật cho binary đang chạy.',
+        openSettingsTitle: 'Mở Accessibility Settings',
+        openSystemSettings: 'Mở System Settings',
+        detailsPrefix: 'Chi tiết executablePath / bundle identifier xem tại',
+        detailsBold: 'khôi phục Accessibility',
+        detailsSuffix: 'phía trên dashboard.',
+      },
+      updates: {
+        updateLog: 'Nhật ký cập nhật:',
+        readyToCheck: 'Sẵn sàng kiểm tra',
+        check: 'Check',
+        checking: 'Đang kiểm tra bản cập nhật…',
+        upToDate: 'Ứng dụng ở phiên bản mới nhất.',
+        updateReady: 'Bản cập nhật v{version} đã sẵn sàng.',
+        downloadingPct: 'Đang tải xuống… {pct}%',
+        downloadComplete: 'Đã tải xong — đang tiến hành cài đặt.',
+        checkFailed: 'Kiểm tra cập nhật lỗi.',
+        updateAvailableText:
+          'Có bản cập nhật mới v{version}. Bạn có muốn tải xuống và cài đặt tự động?',
+        openDownloadPage: 'Mở trang tải xuống →',
+        downloadAndUpgrade: 'Tải & nâng cấp tự động',
+        downloadingEllipsis: 'Đang tải xuống...',
+      },
+      importExport: {
+        exportImportLabel: 'Xuất/Nhập dữ liệu layout:',
+        exportImportHint: 'Tải về hoặc tải lên file JSON cấu hình lưới phím',
+        exportTitle: 'Xuất cấu hình hiện tại ra file JSON',
+        exportBtn: 'Export',
+        importTitle: 'Nạp cấu hình từ file JSON',
+        importBtn: 'Import',
+      },
+      about: {
+        softwareName: 'Tên phần mềm:',
+        appName: 'Android Stream Desk',
+        currentVersion: 'Phiên bản hiện tại:',
+        author: 'Tác giả:',
+        authorValue: 'aniadev',
+        license: 'Giấy phép:',
+        licenseValue: 'MIT License',
+        sourceCode: 'Mã nguồn:',
+        githubRepo: 'GitHub Repo',
+        supportDeveloper: 'Ủng hộ nhà phát triển',
+        supportText:
+          'Dự án hoàn toàn miễn phí & mã nguồn mở. Hãy mời tác giả một ly cà phê nếu bạn thấy ứng dụng này hữu ích!',
+        buyCoffee: 'Buy me a coffee (Ko-Fi)',
+        momoZoomTitle: 'Click để phóng to QR MoMo',
+        momoZoomAria: 'Mã QR MoMo. Nhấn để phóng to.',
+        supportViaMomo: 'Ủng hộ qua MoMo',
+        momoAlt: 'MoMo QR',
+        scanMomo: 'Quét MoMo',
+      },
+    },
+  },
+});
+
+const settingsGroups = computed<Array<{ id: SettingsGroupId; label: string; icon: string }>>(() => [
+  { id: 'general', label: t('groups.general'), icon: 'lucide:sliders-horizontal' },
+  { id: 'network', label: t('groups.network'), icon: 'lucide:wifi' },
+  { id: 'client-qr', label: t('groups.clientQr'), icon: 'lucide:qr-code' },
+  { id: 'permissions', label: t('groups.permissions'), icon: 'lucide:shield-check' },
+  { id: 'updates', label: t('groups.updates'), icon: 'lucide:refresh-cw' },
+  { id: 'import-export', label: t('groups.importExport'), icon: 'lucide:database' },
+  { id: 'about', label: t('groups.about'), icon: 'lucide:info' },
+]);
 
 const visibleSettingsGroups = computed(() =>
-  settingsGroups.filter(group => group.id !== 'permissions' || props.isMac),
+  settingsGroups.value.filter(group => group.id !== 'permissions' || props.isMac),
 );
 
 const activeWsPort = computed(() => props.runningWsPort ?? props.serverPort);
@@ -82,17 +304,17 @@ const activeWsPort = computed(() => props.runningWsPort ?? props.serverPort);
 const updateStatusText = computed(() => {
   switch (updaterStore.state) {
     case 'checking':
-      return 'Đang kiểm tra bản cập nhật…';
+      return t('updates.checking');
     case 'no-update':
-      return 'Ứng dụng ở phiên bản mới nhất.';
+      return t('updates.upToDate');
     case 'available':
-      return `Bản cập nhật v${updaterStore.update?.version} đã sẵn sàng.`;
+      return t('updates.updateReady', { version: updaterStore.update?.version });
     case 'downloading':
-      return `Đang tải xuống… ${updaterStore.progressPct}%`;
+      return t('updates.downloadingPct', { pct: updaterStore.progressPct });
     case 'ready':
-      return 'Đã tải xong — đang tiến hành cài đặt.';
+      return t('updates.downloadComplete');
     case 'error':
-      return updaterStore.errorMsg ?? 'Kiểm tra cập nhật lỗi.';
+      return updaterStore.errorMsg ?? t('updates.checkFailed');
     default:
       return '';
   }
@@ -140,18 +362,18 @@ const onSettingsScroll = (e: Event) => {
           <img src="/logo.png" alt="Logo" class="h-9 w-9 shrink-0" />
           <div class="flex-1 min-w-0">
             <h2 class="text-sm font-bold text-slate-50 uppercase tracking-wider">
-              Thiết lập & thông tin hệ thống
+              {{ t('modal.title') }}
             </h2>
             <p class="text-[9px] text-slate-500 mt-0.5">
-              Tự động cấu hình, updater và giấy phép phần mềm
+              {{ t('modal.subtitle') }}
             </p>
           </div>
           <button
             type="button"
             class="w-8 h-8 rounded-md text-slate-400 hover:text-cyan-400 hover:bg-slate-800/60 flex items-center justify-center transition-colors cursor-pointer shrink-0"
             @click="emit('update:modelValue', false)"
-            title="Đóng"
-            aria-label="Đóng"
+            :title="t('modal.close')"
+            :aria-label="t('modal.close')"
           >
             <Icon icon="lucide:x" class="text-base" />
           </button>
@@ -161,7 +383,7 @@ const onSettingsScroll = (e: Event) => {
         <div class="flex flex-1 overflow-hidden min-h-0">
           <nav
             class="w-[160px] shrink-0 border-r border-slate-800/60 p-3 flex flex-col gap-1 overflow-y-auto bg-slate-950/40"
-            aria-label="Settings groups"
+            :aria-label="t('nav.ariaLabel')"
           >
             <button
               v-for="g in visibleSettingsGroups"
@@ -189,13 +411,13 @@ const onSettingsScroll = (e: Event) => {
             <section id="settings-group-general" class="flex flex-col gap-3 scroll-mt-4">
               <div class="flex items-center gap-2">
                 <Icon icon="lucide:sliders-horizontal" class="text-sm text-cyan-400" />
-                <h3 class="cyber-section-title">General</h3>
+                <h3 class="cyber-section-title">{{ t('groups.general') }}</h3>
               </div>
 
               <!-- Theme -->
               <div class="flex flex-col gap-2.5">
                 <span class="text-[9px] font-bold uppercase tracking-wider text-slate-500"
-                  >Giao diện</span
+                  >{{ t('general.theme') }}</span
                 >
                 <ModalThemeSelector
                   :active-theme="activeTheme"
@@ -203,16 +425,30 @@ const onSettingsScroll = (e: Event) => {
                 />
               </div>
 
+              <!-- Language -->
+              <div class="flex flex-col gap-2.5">
+                <span class="text-[9px] font-bold uppercase tracking-wider text-slate-500"
+                  >{{ t('settings.language.label') }}</span
+                >
+                <select
+                  v-model="activeLocale"
+                  class="cyber-inset bg-brand-dark border border-brand-border text-slate-100 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-brand-accent transition-colors"
+                >
+                  <option value="en">{{ t('settings.language.en') }}</option>
+                  <option value="vi">{{ t('settings.language.vi') }}</option>
+                </select>
+              </div>
+
               <!-- Autostart -->
               <div class="flex flex-col gap-2.5">
                 <span class="text-[9px] font-bold uppercase tracking-wider text-slate-500"
-                  >Tự khởi động</span
+                  >{{ t('general.autostart') }}</span
                 >
                 <div class="cyber-inset flex items-center justify-between p-3">
                   <div class="flex flex-col gap-0.5 min-w-0">
-                    <span class="font-medium text-slate-300">Khởi động cùng hệ thống:</span>
+                    <span class="font-medium text-slate-300">{{ t('general.startWithSystem') }}</span>
                     <span class="text-[9px] text-slate-500"
-                      >Chạy ẩn vào khay hệ thống (tray) khi bật máy</span
+                      >{{ t('general.startWithSystemHint') }}</span
                     >
                   </div>
                   <button
@@ -230,7 +466,7 @@ const onSettingsScroll = (e: Event) => {
                       icon="lucide:loader-2"
                       class="animate-spin text-xs"
                     />
-                    <span>{{ autostartOn ? 'Bật' : 'Tắt' }}</span>
+                    <span>{{ autostartOn ? t('general.on') : t('general.off') }}</span>
                   </button>
                 </div>
               </div>
@@ -241,7 +477,7 @@ const onSettingsScroll = (e: Event) => {
               <div class="flex items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
                   <Icon icon="lucide:wifi" class="text-sm text-cyan-400" />
-                  <h3 class="cyber-section-title">Network</h3>
+                  <h3 class="cyber-section-title">{{ t('groups.network') }}</h3>
                 </div>
                 <span
                   class="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[9px] font-bold uppercase tracking-wider shrink-0"
@@ -262,7 +498,7 @@ const onSettingsScroll = (e: Event) => {
               <div class="cyber-inset flex flex-col gap-3 p-3">
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label class="flex flex-col gap-1.5">
-                    <span class="cyber-input-label">Cổng đang chạy</span>
+                    <span class="cyber-input-label">{{ t('network.currentlyRunningPort') }}</span>
                     <div
                       class="h-[38px] rounded-lg border border-slate-800 bg-slate-950/80 px-3 py-2.5 font-mono text-xs text-slate-400 shadow-inner"
                     >
@@ -271,7 +507,7 @@ const onSettingsScroll = (e: Event) => {
                   </label>
 
                   <label class="flex flex-col gap-1.5">
-                    <span class="cyber-input-label">Cổng sau khi khởi động lại</span>
+                    <span class="cyber-input-label">{{ t('network.portAfterRestart') }}</span>
                     <Input
                       v-model="serverConfigDraft.wsPort"
                       inputmode="numeric"
@@ -290,7 +526,7 @@ const onSettingsScroll = (e: Event) => {
 
                 <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
                   <label class="flex flex-col gap-1.5">
-                    <span class="cyber-input-label">Port HTTP Web Client</span>
+                    <span class="cyber-input-label">{{ t('network.httpWebClientPort') }}</span>
                     <Input
                       v-model="serverConfigDraft.webPort"
                       inputmode="numeric"
@@ -317,7 +553,7 @@ const onSettingsScroll = (e: Event) => {
                       "
                       class="text-sm"
                     />
-                    {{ serverConfigDraft.webEnabled ? 'Web bật' : 'Web tắt' }}
+                    {{ serverConfigDraft.webEnabled ? t('network.webOn') : t('network.webOff') }}
                   </button>
                 </div>
 
@@ -368,7 +604,7 @@ const onSettingsScroll = (e: Event) => {
                       class="text-xs"
                       :class="serverConfigSaving ? 'animate-spin' : ''"
                     />
-                    {{ serverConfigSaving ? 'Đang lưu...' : 'Lưu và khởi động lại' }}
+                    {{ serverConfigSaving ? t('network.saving') : t('network.saveAndRestart') }}
                   </button>
                 </div>
               </div>
@@ -378,7 +614,7 @@ const onSettingsScroll = (e: Event) => {
             <section id="settings-group-client-qr" class="flex flex-col gap-3 scroll-mt-4">
               <div class="flex items-center gap-2">
                 <Icon icon="lucide:qr-code" class="text-sm text-cyan-400" />
-                <h3 class="cyber-section-title">Client & QR</h3>
+                <h3 class="cyber-section-title">{{ t('groups.clientQr') }}</h3>
               </div>
 
               <div
@@ -389,7 +625,7 @@ const onSettingsScroll = (e: Event) => {
                   <div class="flex items-center gap-2">
                     <Icon icon="lucide:triangle-alert" class="text-amber-400 text-sm shrink-0" />
                     <span class="text-[9px] font-bold uppercase tracking-wider text-amber-300/90"
-                      >Chỉ bật trên Wi-Fi tin cậy</span
+                      >{{ t('clientQr.trustedWifiOnly') }}</span
                     >
                   </div>
                   <div
@@ -403,7 +639,7 @@ const onSettingsScroll = (e: Event) => {
                     @click="emit('copyWebClientUrl')"
                   >
                     <Icon :icon="updaterStore.errorMsg ? 'lucide:alert-circle' : 'lucide:copy'" class="text-xs" />
-                    {{ 'Copy Web URL' }}
+                    {{ t('clientQr.copyWebUrl') }}
                   </button>
                 </div>
 
@@ -417,21 +653,21 @@ const onSettingsScroll = (e: Event) => {
                     @click="emit('openZoomModal', 'Web Client LAN', webClientUrl, props.webClientQrSvg)"
                     @keydown.enter="emit('openZoomModal', 'Web Client LAN', webClientUrl, props.webClientQrSvg)"
                     @keydown.space.prevent="emit('openZoomModal', 'Web Client LAN', webClientUrl, props.webClientQrSvg)"
-                    title="Click để phóng to mã QR"
-                    aria-label="Mã QR Web Client. Nhấn Enter hoặc Space để phóng to."
+                    :title="t('clientQr.zoomTitle')"
+                    :aria-label="t('clientQr.zoomAria')"
                   >
                     <div v-html="props.webClientQrSvg" class="w-full h-full"></div>
                   </button>
                   <div
                     class="mt-1 text-center text-[8.5px] font-bold uppercase tracking-wider text-cyan-300/80"
                   >
-                    Mở trên iPad / Browser
+                    {{ t('clientQr.openOnIpadBrowser') }}
                   </div>
                 </div>
               </div>
               <p v-else class="text-[10px] text-slate-500 leading-relaxed">
-                Bật <strong class="text-slate-300">Web Client</strong> trong nhóm
-                <em>Network</em> để sinh URL + QR cho iPad/Browser.
+                {{ t('clientQr.enableWebClientPrefix') }} <strong class="text-slate-300">Web Client</strong> {{ t('clientQr.enableWebClientMid') }}
+                <em>Network</em> {{ t('clientQr.enableWebClientSuffix') }}
               </p>
             </section>
 
@@ -443,32 +679,30 @@ const onSettingsScroll = (e: Event) => {
             >
               <div class="flex items-center gap-2">
                 <Icon icon="lucide:shield-check" class="text-sm text-cyan-400" />
-                <h3 class="cyber-section-title">Permissions</h3>
+                <h3 class="cyber-section-title">{{ t('groups.permissions') }}</h3>
               </div>
 
               <div class="cyber-inset flex items-center justify-between p-3">
                 <div class="flex flex-col gap-0.5 min-w-0">
-                  <span class="font-medium text-slate-300">Accessibility (macOS):</span>
+                  <span class="font-medium text-slate-300">{{ t('permissions.accessibilityLabel') }}</span>
                   <span class="text-[9px] text-slate-500">
-                    Cần thiết để gửi phím tắt vào app đang focus. Nếu chưa bật, mở System Settings
-                    và bật cho binary đang chạy.
+                    {{ t('permissions.accessibilityDesc') }}
                   </span>
                 </div>
                 <button
                   type="button"
                   class="cyber-action-btn font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1.5 flex items-center justify-center gap-1.5 shrink-0"
                   @click="emit('openAccessibilitySettings')"
-                  title="Mở Accessibility Settings"
+                  :title="t('permissions.openSettingsTitle')"
                 >
                   <Icon icon="lucide:external-link" class="text-xs" />
-                  <span>Mở System Settings</span>
+                  <span>{{ t('permissions.openSystemSettings') }}</span>
                 </button>
               </div>
 
               <p class="text-[9px] text-slate-500 leading-relaxed px-1">
-                Chi tiết executablePath / bundle identifier xem tại
-                <strong class="text-slate-300">khôi phục Accessibility</strong> phía trên
-                dashboard.
+                {{ t('permissions.detailsPrefix') }}
+                <strong class="text-slate-300">{{ t('permissions.detailsBold') }}</strong> {{ t('permissions.detailsSuffix') }}
               </p>
             </section>
 
@@ -476,15 +710,15 @@ const onSettingsScroll = (e: Event) => {
             <section id="settings-group-updates" class="flex flex-col gap-3 scroll-mt-4">
               <div class="flex items-center gap-2">
                 <Icon icon="lucide:refresh-cw" class="text-sm text-cyan-400" />
-                <h3 class="cyber-section-title">Updates</h3>
+                <h3 class="cyber-section-title">{{ t('groups.updates') }}</h3>
               </div>
 
               <div class="cyber-inset flex flex-col gap-3 p-3">
                 <div class="flex items-center justify-between">
                   <div class="flex flex-col gap-0.5 min-w-0">
-                    <span class="font-medium text-slate-300">Nhật ký cập nhật:</span>
+                    <span class="font-medium text-slate-300">{{ t('updates.updateLog') }}</span>
                     <span class="text-[10px] text-slate-500 font-bold uppercase mt-0.5">
-                      {{ updateStatusText || 'Sẵn sàng kiểm tra' }}
+                      {{ updateStatusText || t('updates.readyToCheck') }}
                     </span>
                   </div>
                   <button
@@ -494,7 +728,7 @@ const onSettingsScroll = (e: Event) => {
                     "
                     @click="updaterStore.checkForUpdates()"
                   >
-                    Check
+                    {{ t('updates.check') }}
                   </button>
                 </div>
 
@@ -503,8 +737,7 @@ const onSettingsScroll = (e: Event) => {
                   class="flex flex-col gap-2 pt-2 cyber-divider"
                 >
                   <p class="text-[10px] text-emerald-400 font-medium">
-                    Có bản cập nhật mới v{{ updaterStore.update?.version }}. Bạn có muốn tải xuống
-                    và cài đặt tự động?
+                    {{ t('updates.updateAvailableText', { version: updaterStore.update?.version }) }}
                   </p>
                   <button
                     class="cyber-action-btn font-bold w-full uppercase tracking-wider text-[10px] py-1.5 cursor-pointer"
@@ -512,8 +745,8 @@ const onSettingsScroll = (e: Event) => {
                   >
                     {{
                       (updaterStore.update as any)?.isManual
-                        ? 'Mở trang tải xuống →'
-                        : 'Tải & nâng cấp tự động'
+                        ? t('updates.openDownloadPage')
+                        : t('updates.downloadAndUpgrade')
                     }}
                   </button>
                 </div>
@@ -523,7 +756,7 @@ const onSettingsScroll = (e: Event) => {
                   class="flex flex-col gap-1.5 pt-2 cyber-divider"
                 >
                   <div class="flex justify-between text-[10px] font-mono text-slate-300">
-                    <span>Đang tải xuống...</span>
+                    <span>{{ t('updates.downloadingEllipsis') }}</span>
                     <span class="text-cyan-400">{{ updaterStore.progressPct }}%</span>
                   </div>
                   <div class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
@@ -540,14 +773,14 @@ const onSettingsScroll = (e: Event) => {
             <section id="settings-group-import-export" class="flex flex-col gap-3 scroll-mt-4">
               <div class="flex items-center gap-2">
                 <Icon icon="lucide:database" class="text-sm text-cyan-400" />
-                <h3 class="cyber-section-title">Import/Export</h3>
+                <h3 class="cyber-section-title">{{ t('groups.importExport') }}</h3>
               </div>
 
               <div class="cyber-inset flex items-center justify-between p-3">
                 <div class="flex flex-col gap-0.5 min-w-0">
-                  <span class="font-medium text-slate-300">Xuất/Nhập dữ liệu layout:</span>
+                  <span class="font-medium text-slate-300">{{ t('importExport.exportImportLabel') }}</span>
                   <span class="text-[9px] text-slate-500"
-                    >Tải về hoặc tải lên file JSON cấu hình lưới phím</span
+                    >{{ t('importExport.exportImportHint') }}</span
                   >
                 </div>
                 <div class="flex gap-2 shrink-0">
@@ -555,19 +788,19 @@ const onSettingsScroll = (e: Event) => {
                     type="button"
                     class="cyber-action-btn font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1.5 flex items-center gap-1.5"
                     @click="emit('handleExport')"
-                    title="Xuất cấu hình hiện tại ra file JSON"
+                    :title="t('importExport.exportTitle')"
                   >
                     <Icon icon="lucide:download" class="text-xs" />
-                    <span>Export</span>
+                    <span>{{ t('importExport.exportBtn') }}</span>
                   </button>
                   <button
                     type="button"
                     class="cyber-action-btn font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1.5 flex items-center gap-1.5"
                     @click="emit('triggerImport')"
-                    title="Nạp cấu hình từ file JSON"
+                    :title="t('importExport.importTitle')"
                   >
                     <Icon icon="lucide:upload" class="text-xs" />
-                    <span>Import</span>
+                    <span>{{ t('importExport.importBtn') }}</span>
                   </button>
                 </div>
               </div>
@@ -577,25 +810,25 @@ const onSettingsScroll = (e: Event) => {
             <section id="settings-group-about" class="flex flex-col gap-3 scroll-mt-4">
               <div class="flex items-center gap-2">
                 <Icon icon="lucide:info" class="text-sm text-cyan-400" />
-                <h3 class="cyber-section-title">About/Support</h3>
+                <h3 class="cyber-section-title">{{ t('groups.about') }}</h3>
               </div>
 
               <div class="flex flex-col gap-3">
                 <div class="cyber-inset p-3">
                   <div class="grid grid-cols-2 gap-y-2">
-                    <span class="text-slate-400 font-medium">Tên phần mềm:</span>
+                    <span class="text-slate-400 font-medium">{{ t('about.softwareName') }}</span>
                     <span class="text-slate-200 font-bold justify-self-end"
-                      >Android Stream Desk</span
+                      >{{ t('about.appName') }}</span
                     >
-                    <span class="text-slate-400 font-medium">Phiên bản hiện tại:</span>
+                    <span class="text-slate-400 font-medium">{{ t('about.currentVersion') }}</span>
                     <span class="font-mono text-cyan-300 justify-self-end"
                       >v{{ appVersion }}</span
                     >
-                    <span class="text-slate-400 font-medium">Tác giả:</span>
-                    <span class="text-slate-200 justify-self-end font-semibold">aniadev</span>
-                    <span class="text-slate-400 font-medium">Giấy phép:</span>
-                    <span class="font-mono text-slate-200 justify-self-end">MIT License</span>
-                    <span class="text-slate-400 font-medium">Mã nguồn:</span>
+                    <span class="text-slate-400 font-medium">{{ t('about.author') }}</span>
+                    <span class="text-slate-200 justify-self-end font-semibold">{{ t('about.authorValue') }}</span>
+                    <span class="text-slate-400 font-medium">{{ t('about.license') }}</span>
+                    <span class="font-mono text-slate-200 justify-self-end">{{ t('about.licenseValue') }}</span>
+                    <span class="text-slate-400 font-medium">{{ t('about.sourceCode') }}</span>
                     <span class="justify-self-end">
                       <a
                         href="https://github.com/aniadev/android-stream-desk"
@@ -604,7 +837,7 @@ const onSettingsScroll = (e: Event) => {
                         "
                         class="text-cyan-400 hover:underline flex items-center gap-1 cursor-pointer"
                       >
-                        GitHub Repo <Icon icon="lucide:external-link" class="text-[10px]" />
+                        {{ t('about.githubRepo') }} <Icon icon="lucide:external-link" class="text-[10px]" />
                       </a>
                     </span>
                   </div>
@@ -618,11 +851,10 @@ const onSettingsScroll = (e: Event) => {
                   >
                     <div class="flex items-center gap-1.5 text-xs font-bold text-fuchsia-300">
                       <Icon icon="mdi:coffee" class="text-sm shrink-0 animate-bounce" />
-                      <span>Ủng hộ nhà phát triển</span>
+                      <span>{{ t('about.supportDeveloper') }}</span>
                     </div>
                     <p class="text-[9px] text-slate-400 max-w-[280px] leading-relaxed">
-                      Dự án hoàn toàn miễn phí & mã nguồn mở. Hãy mời tác giả một ly cà phê nếu
-                      bạn thấy ứng dụng này hữu ích!
+                      {{ t('about.supportText') }}
                     </p>
                     <a
                       href="https://ko-fi.com/ania9"
@@ -630,26 +862,26 @@ const onSettingsScroll = (e: Event) => {
                       class="mt-2 inline-flex items-center justify-center gap-1.5 rounded-lg border border-fuchsia-500/30 bg-fuchsia-950/30 hover:bg-fuchsia-900/40 hover:border-fuchsia-400 px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-wider text-fuchsia-200 shadow shadow-fuchsia-950/20 transition duration-150 cursor-pointer"
                     >
                       <Icon icon="lucide:external-link" class="text-xs" />
-                      <span>Buy me a coffee (Ko-Fi)</span>
+                      <span>{{ t('about.buyCoffee') }}</span>
                     </a>
                   </div>
                   <div class="w-[148px] shrink-0 p-2 flex flex-col items-center gap-1">
                     <button
                       type="button"
                       class="w-full rounded bg-white p-0.5 cursor-zoom-in transition-transform hover:scale-[1.03] focus-visible:ring-2 focus-visible:ring-cyan-500 outline-none"
-                      title="Click để phóng to QR MoMo"
-                      aria-label="Mã QR MoMo. Nhấn để phóng to."
-                      @click="emit('openImageZoom', 'Ủng hộ qua MoMo', '/donate/momo.png')"
+                      :title="t('about.momoZoomTitle')"
+                      :aria-label="t('about.momoZoomAria')"
+                      @click="emit('openImageZoom', t('about.supportViaMomo'), '/donate/momo.png')"
                     >
                       <img
                         src="/donate/momo.png"
-                        alt="MoMo QR"
+                        :alt="t('about.momoAlt')"
                         class="w-full aspect-square object-cover rounded"
                       />
                     </button>
                     <span
                       class="text-[8px] font-extrabold tracking-wider uppercase text-cyan-300/80"
-                      >Quét MoMo</span
+                      >{{ t('about.scanMomo') }}</span
                     >
                   </div>
                 </div>

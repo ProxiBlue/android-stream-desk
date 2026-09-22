@@ -1,8 +1,45 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useConnectionStore } from '../stores/connection';
 
 const connectionStore = useConnectionStore();
+
+const { t } = useI18n({
+  useScope: 'local',
+  messages: {
+    en: {
+      connectionStatus: {
+        status: {
+          connected: 'Connected',
+          connecting: 'Connecting...',
+          error: 'Connection Error',
+          disconnected: 'Disconnected',
+          notConnected: 'Not Connected',
+        },
+        ipPlaceholder: 'IP Address (e.g. 192.168.1.5)',
+        portPlaceholder: 'Port',
+        disconnect: 'Disconnect',
+        connect: 'Connect',
+      },
+    },
+    vi: {
+      connectionStatus: {
+        status: {
+          connected: 'Đã kết nối',
+          connecting: 'Đang kết nối...',
+          error: 'Lỗi kết nối',
+          disconnected: 'Mất kết nối',
+          notConnected: 'Chưa kết nối',
+        },
+        ipPlaceholder: 'Địa chỉ IP (e.g. 192.168.1.5)',
+        portPlaceholder: 'Port',
+        disconnect: 'Ngắt kết nối',
+        connect: 'Kết nối',
+      },
+    },
+  },
+});
 
 // On first launch, prefill the IP input with the device's own LAN subnet —
 // Companion almost always lives on the same /24, so the user only edits the
@@ -53,10 +90,10 @@ onMounted(async () => {
           ></span>
         </span>
         <span class="text-sm font-semibold capitalize tracking-wide">
-          {{ connectionStore.status === 'connected' ? 'Đã kết nối' :
-             connectionStore.status === 'connecting' ? 'Đang kết nối...' :
-             connectionStore.status === 'error' ? 'Lỗi kết nối' :
-             connectionStore.isReconnecting ? 'Mất kết nối' : 'Chưa kết nối' }}
+          {{ connectionStore.status === 'connected' ? t('connectionStatus.status.connected') :
+             connectionStore.status === 'connecting' ? t('connectionStatus.status.connecting') :
+             connectionStore.status === 'error' ? t('connectionStatus.status.error') :
+             connectionStore.isReconnecting ? t('connectionStatus.status.disconnected') : t('connectionStatus.status.notConnected') }}
         </span>
       </div>
 
@@ -65,14 +102,14 @@ onMounted(async () => {
         <input 
           v-model="connectionStore.ipAddress" 
           type="text" 
-          placeholder="Địa chỉ IP (e.g. 192.168.1.5)"
+          :placeholder="t('connectionStatus.ipPlaceholder')"
           class="bg-brand-dark border border-brand-border text-slate-100 rounded-lg px-3 py-1.5 w-full text-sm focus:outline-none focus:border-brand-accent transition-colors"
           :disabled="connectionStore.status === 'connected' || connectionStore.status === 'connecting'"
         />
         <input 
           v-model="connectionStore.port" 
           type="text" 
-          placeholder="Port"
+          :placeholder="t('connectionStatus.portPlaceholder')"
           class="bg-brand-dark border border-brand-border text-slate-100 rounded-lg px-2 py-1.5 w-16 text-center text-sm focus:outline-none focus:border-brand-accent transition-colors"
           :disabled="connectionStore.status === 'connected' || connectionStore.status === 'connecting'"
         />
@@ -88,7 +125,7 @@ onMounted(async () => {
         'bg-brand-accent hover:bg-brand-accentHover text-white': connectionStore.status !== 'connected' && connectionStore.status !== 'connecting'
       }"
     >
-      {{ connectionStore.status === 'connected' || connectionStore.status === 'connecting' ? 'Ngắt kết nối' : 'Kết nối' }}
+      {{ connectionStore.status === 'connected' || connectionStore.status === 'connecting' ? t('connectionStatus.disconnect') : t('connectionStatus.connect') }}
     </button>
   </div>
 </template>

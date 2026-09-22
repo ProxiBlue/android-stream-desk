@@ -3,6 +3,7 @@ import { createPinia } from 'pinia';
 import { createRouter, createWebHashHistory } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
 import { initOfflineIcons } from './icons-bundle';
+import { i18n } from './i18n';
 
 // Initialize pre-bundled offline icons
 initOfflineIcons();
@@ -42,7 +43,7 @@ const router = createRouter({
   routes
 });
 
-// Tự động điều hướng Dashboard trên Desktop Companion, Pad trên di động
+// Automatically navigate to Dashboard on Desktop Companion, Pad on mobile
 if (!isClientOnlyBuild) {
   router.beforeEach((to, _from, next) => {
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -60,5 +61,6 @@ const pinia = createPinia();
 
 app.use(pinia);
 app.use(router);
+app.use(i18n);
 
 app.mount('#app');

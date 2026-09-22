@@ -1,5 +1,24 @@
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
+
+const { t } = useI18n({
+  useScope: 'local',
+  messages: {
+    en: {
+      toast: {
+        viewRecoveryPanel: 'View recovery panel',
+        close: 'Close',
+      },
+    },
+    vi: {
+      toast: {
+        viewRecoveryPanel: 'Xem panel khôi phục',
+        close: 'Đóng',
+      },
+    },
+  },
+});
 
 defineProps<{
   lastToast: {
@@ -40,7 +59,7 @@ const emit = defineEmits<{
             class="cyber-action-btn font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1"
             @click="emit('scrollToAccessibility')"
           >
-            Xem panel khôi phục
+            {{ t('toast.viewRecoveryPanel') }}
           </button>
         </div>
       </div>
@@ -48,7 +67,7 @@ const emit = defineEmits<{
         type="button"
         class="text-slate-500 hover:text-slate-300 cursor-pointer shrink-0"
         @click="emit('dismiss')"
-        title="Đóng"
+        :title="t('toast.close')"
       >
         <Icon icon="lucide:x" class="text-sm" />
       </button>

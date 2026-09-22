@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref, watch, computed } from 'vue';
 import { storeToRefs } from 'pinia';
+import { useI18n } from 'vue-i18n';
 import { useConnectionStore } from '../stores/connection';
 import { useLayoutStore } from '../stores/layout';
 import { useSettingsStore } from '../stores/settings';
@@ -21,6 +22,154 @@ const layoutStore = useLayoutStore();
 const settingsStore = useSettingsStore();
 const { keepScreenOn, vibrateOnClick, soundOnClick, displayFitMode } =
   storeToRefs(settingsStore);
+
+const { t } = useI18n({
+  useScope: 'local',
+  messages: {
+    en: {
+      client: {
+        common: { cancel: 'Cancel', on: 'On', off: 'Off' },
+        orientation: {
+          auto: 'Auto',
+          landscape: 'Landscape',
+          landscapeReverse: 'Landscape Reversed',
+          portrait: 'Portrait',
+        },
+        fitMode: {
+          contain: { label: 'Contain', hint: 'Keeps the whole grid within the viewport, with a shell border' },
+          cover: { label: 'Cover', hint: 'Grid covers as much as possible, crops padding slightly, keeps the border' },
+          full: { label: 'Full', hint: 'Removes the shell, maximizes padding — closer to a native app' },
+        },
+        scan: {
+          permissionDenied: 'Camera permission not granted for QR scanning.',
+          invalidFormat: 'QR code is not a valid Android Stream Desk connection format.',
+          connectingToEndpoint: 'Companion QR code scanned. Connecting to {endpoint}...',
+          cancelled: 'QR scan cancelled.',
+          failed: 'QR scan failed: {error}',
+          scanning: 'Scanning...',
+          scanAgain: 'Scan QR Again',
+          scanFromCompanion: 'Scan QR from Companion',
+        },
+        offline: {
+          title: 'LAN network disconnected',
+          hint: 'Turn on Wi-Fi and join the same LAN as Companion.',
+        },
+        reconnect: {
+          retrying: 'Retrying {current}/{max}',
+          hint: 'Edit the IP/Port below and press Connect Now to stop the retry cycle.',
+        },
+        error: {
+          failedAfterAttempts: "Couldn't connect after {max} attempts",
+          checkAndRetry: 'Check that Companion is running and the IP/Port are correct, then try again.',
+        },
+        connect: {
+          title: 'Companion Not Connected',
+          description: 'Enter the local IPv4 address and Port (shown in the Companion HUD, top right) to sync the macro key grid.',
+          ipLabel: 'IP Address:',
+          portLabel: 'Port:',
+          ipPlaceholder: 'e.g. 192.168.1.15',
+          portPlaceholder: 'Port',
+          connecting: 'Connecting...',
+          retryError: 'Error - Retry Now',
+          connectNow: 'Connect Now',
+        },
+        settings: {
+          title: 'Connection Info',
+          subtitle: 'Companion config',
+          serverAddress: 'Server Address:',
+          status: 'Status:',
+          statusActive: 'Active',
+          statusReconnecting: 'Reconnecting...',
+          statusDisconnected: 'Disconnected',
+          screenRotation: 'Screen Rotation',
+          fitModeLabel: 'How the Grid Fills the Screen',
+          keepScreenOn: 'Keep Screen On',
+          vibrateOnTap: 'Vibrate on Tap',
+          soundOnTap: 'Sound on Tap',
+          batteryHintPrefix: 'If WiFi disconnects while running on battery, go to',
+          batteryPath: 'Settings → Apps → Battery → Unrestricted',
+          batteryHintSuffix: 'to disable battery optimization for the app.',
+          disconnect: 'Disconnect',
+        },
+        scanOverlay: {
+          instruction: 'Position the Companion QR code within the frame',
+          cancel: 'Cancel Scan',
+        },
+      },
+    },
+    vi: {
+      client: {
+        common: { cancel: 'Hủy', on: 'Bật', off: 'Tắt' },
+        orientation: {
+          auto: 'Tự động',
+          landscape: 'Ngang',
+          landscapeReverse: 'Ngang ngược',
+          portrait: 'Dọc',
+        },
+        fitMode: {
+          contain: { label: 'Contain', hint: 'Giữ toàn bộ lưới trong viewport, có viền shell' },
+          cover: { label: 'Cover', hint: 'Lưới phủ tối đa, crop padding nhẹ, giữ viền' },
+          full: { label: 'Full', hint: 'Bỏ shell, padding tối đa — gần app native' },
+        },
+        scan: {
+          permissionDenied: 'Chưa có quyền camera để quét QR.',
+          invalidFormat: 'QR không đúng định dạng kết nối Android Stream Desk.',
+          connectingToEndpoint: 'Đã đọc QR Companion. Đang kết nối {endpoint}...',
+          cancelled: 'Đã hủy quét QR.',
+          failed: 'Quét QR thất bại: {error}',
+          scanning: 'Đang quét...',
+          scanAgain: 'Quét QR lại',
+          scanFromCompanion: 'Quét QR từ Companion',
+        },
+        offline: {
+          title: 'Mất kết nối mạng LAN',
+          hint: 'Bật Wi-Fi và ở cùng mạng LAN với Companion.',
+        },
+        reconnect: {
+          retrying: 'Đang thử lại {current}/{max}',
+          hint: 'Sửa IP/Port bên dưới rồi nhấn Kết nối ngay để dừng chu kỳ.',
+        },
+        error: {
+          failedAfterAttempts: 'Không kết nối được sau {max} lần thử',
+          checkAndRetry: 'Kiểm tra Companion đang chạy + IP/Port đúng rồi thử lại.',
+        },
+        connect: {
+          title: 'Chưa kết nối Companion',
+          description: 'Nhập địa chỉ IPv4 nội bộ và Port (ở Companion HUD góc phải) để đồng bộ hóa lưới phím macro.',
+          ipLabel: 'Địa chỉ IP:',
+          portLabel: 'Port:',
+          ipPlaceholder: 'e.g. 192.168.1.15',
+          portPlaceholder: 'Port',
+          connecting: 'Đang kết nối...',
+          retryError: 'Lỗi - Thử lại ngay',
+          connectNow: 'Kết nối ngay',
+        },
+        settings: {
+          title: 'Thông tin kết nối',
+          subtitle: 'Companion config',
+          serverAddress: 'Server Address:',
+          status: 'Trạng thái:',
+          statusActive: 'Đang hoạt động',
+          statusReconnecting: 'Đang kết nối lại...',
+          statusDisconnected: 'Mất kết nối',
+          screenRotation: 'Xoay màn hình',
+          fitModeLabel: 'Cách lưới chiếm màn hình',
+          keepScreenOn: 'Luôn bật màn hình',
+          vibrateOnTap: 'Rung khi nhấn',
+          soundOnTap: 'Âm thanh khi nhấn',
+          batteryHintPrefix: 'Nếu WiFi mất kết nối khi dùng pin, vào',
+          batteryPath: 'Cài đặt → Ứng dụng → Pin → Không có hạn chế',
+          batteryHintSuffix: 'để tắt tối ưu hóa pin cho app.',
+          disconnect: 'Ngắt kết nối',
+        },
+        scanOverlay: {
+          instruction: 'Đưa mã QR Companion vào khung',
+          cancel: 'Hủy quét',
+        },
+      },
+    },
+  },
+});
 
 const showConnectModal = computed(() => {
   return !connectionStore.hasConnectedOnce && connectionStore.status !== 'connected';
@@ -104,35 +253,35 @@ const orientationMode = ref<OrientationMode>(
   (localStorage.getItem(ORIENTATION_KEY) as OrientationMode) || 'landscape',
 );
 
-const orientationOptions: { value: OrientationMode; label: string; icon: string }[] = [
-  { value: 'auto', label: 'Tự động', icon: 'mdi:screen-rotation' },
-  { value: 'landscape', label: 'Ngang', icon: 'mdi:phone-rotate-landscape' },
-  { value: 'landscape-reverse', label: 'Ngang ngược', icon: 'mdi:phone-rotate-landscape' },
-  { value: 'portrait', label: 'Dọc', icon: 'mdi:phone-rotate-portrait' },
-];
+const orientationOptions = computed<{ value: OrientationMode; label: string; icon: string }[]>(() => [
+  { value: 'auto', label: t('client.orientation.auto'), icon: 'mdi:screen-rotation' },
+  { value: 'landscape', label: t('client.orientation.landscape'), icon: 'mdi:phone-rotate-landscape' },
+  { value: 'landscape-reverse', label: t('client.orientation.landscapeReverse'), icon: 'mdi:phone-rotate-landscape' },
+  { value: 'portrait', label: t('client.orientation.portrait'), icon: 'mdi:phone-rotate-portrait' },
+]);
 
 // --- S-CLIENT1: Display fit mode (contain/cover/fullscreen) ---
 type FitModeLabel = 'contain' | 'cover' | 'fullscreen';
-const fitModeOptions: { value: FitModeLabel; label: string; icon: string; hint: string }[] = [
+const fitModeOptions = computed<{ value: FitModeLabel; label: string; icon: string; hint: string }[]>(() => [
   {
     value: 'contain',
-    label: 'Contain',
+    label: t('client.fitMode.contain.label'),
     icon: 'mdi:fit-to-page-outline',
-    hint: 'Giữ toàn bộ lưới trong viewport, có viền shell',
+    hint: t('client.fitMode.contain.hint'),
   },
   {
     value: 'cover',
-    label: 'Cover',
+    label: t('client.fitMode.cover.label'),
     icon: 'mdi:fit-to-page',
-    hint: 'Lưới phủ tối đa, crop padding nhẹ, giữ viền',
+    hint: t('client.fitMode.cover.hint'),
   },
   {
     value: 'fullscreen',
-    label: 'Full',
+    label: t('client.fitMode.full.label'),
     icon: 'mdi:fit-to-screen',
-    hint: 'Bỏ shell, padding tối đa — gần app native',
+    hint: t('client.fitMode.full.hint'),
   },
-];
+]);
 const setFitMode = (mode: FitModeLabel) => {
   displayFitMode.value = mode;
 };
@@ -224,7 +373,7 @@ const scanCompanionQr = async () => {
     const permission = await requestPermissions();
     if (permission !== 'granted') {
       scanStatus.value = 'permission_denied';
-      showToast('Chưa có quyền camera để quét QR.');
+      showToast(t('client.scan.permissionDenied'));
       return;
     }
 
@@ -243,7 +392,7 @@ const scanCompanionQr = async () => {
     const target = parseApkConnectPayload(result.content);
     if (!target) {
       scanStatus.value = 'invalid_qr';
-      showToast('QR không đúng định dạng kết nối Android Stream Desk.');
+      showToast(t('client.scan.invalidFormat'));
       return;
     }
 
@@ -251,16 +400,16 @@ const scanCompanionQr = async () => {
     connectionStore.applyScannedEndpoint(target.host, target.wsPort);
     scannedEndpointLabel.value = connectionStore.attemptingEndpoint;
     isSubmitted.value = false;
-    showToast(`Đã đọc QR Companion. Đang kết nối ${connectionStore.attemptingEndpoint}...`);
+    showToast(t('client.scan.connectingToEndpoint', { endpoint: connectionStore.attemptingEndpoint }));
     connectionStore.connect();
   } catch (e: any) {
     const errmsg = String(e?.message ?? e ?? '').toLowerCase();
     if (errmsg.includes('cancel') || errmsg.includes('dismiss')) {
       scanStatus.value = 'cancelled';
-      showToast('Đã hủy quét QR.');
+      showToast(t('client.scan.cancelled'));
     } else {
       scanStatus.value = 'invalid_qr';
-      showToast(`Quét QR thất bại: ${e?.message || e}`);
+      showToast(t('client.scan.failed', { error: e?.message || e }));
     }
   } finally {
     // Always restore app chrome + the user's chosen orientation so the connect
@@ -277,13 +426,14 @@ const cancelScanQr = async () => {
     const { cancel } = await import('@tauri-apps/plugin-barcode-scanner');
     await cancel();
   } catch (e: any) {
-    console.warn('Hủy quét QR thất bại:', e);
+    console.warn('Failed to cancel QR scan:', e);
   } finally {
-    // Trên Android, cancel() tắt camera nhưng KHÔNG reject promise scan() đang
-    // treo, nên finally của scanCompanionQr không chạy → class qr-scan-active còn
-    // (#app ẩn + body trong suốt = màn trắng) và isScanningQr kẹt true. Tự khôi
-    // phục chrome + orientation + state ở đây để luôn trở về màn kết nối. Việc này
-    // idempotent với finally của scanCompanionQr nếu promise có reject sau đó.
+    // On Android, cancel() turns off the camera but does NOT reject the pending
+    // scan() promise, so scanCompanionQr's finally never runs → the qr-scan-active
+    // class stays (#app hidden + transparent body = white screen) and
+    // isScanningQr stays stuck true. Restore chrome + orientation + state here so
+    // we always return to the connect screen. This is idempotent with
+    // scanCompanionQr's finally if the promise does reject afterwards.
     scanStatus.value = 'cancelled';
     document.documentElement.classList.remove('qr-scan-active');
     void applyOrientation(orientationMode.value);
@@ -356,8 +506,9 @@ watch(
       (next === 'error' || next === 'disconnected') &&
       scanStatus.value === 'success'
     ) {
-      // Connect sau khi quét QR thất bại — xoá panel spinner "Đang kết nối"
-      // đang kẹt. Chỉ reset khi đang 'success' để không xoá panel lỗi quét.
+      // Connect after a failed QR scan — clear the stuck "Connecting" spinner
+      // panel. Only reset when status is 'success' so we don't clear the
+      // scan-error panel.
       scanStatus.value = 'idle';
     }
   }
@@ -385,8 +536,9 @@ watch(
       await releaseWakeLock();
     }
   },
-  // immediate: mount khi đã connected + keepScreenOn=true (route re-entry /
-  // reconnect nhanh) sẽ không có thay đổi để watch fire — phải chạy ngay.
+  // immediate: on mount when already connected + keepScreenOn=true (route
+  // re-entry / fast reconnect) there's no change to trigger the watcher — it
+  // must run right away.
   { immediate: true }
 );
 
@@ -466,7 +618,7 @@ onUnmounted(() => {
       class="absolute inset-0 z-40 bg-slate-950/70 backdrop-blur-md flex flex-col overflow-y-auto p-4 select-none"
     >
       <!-- m-auto centers stack when it fits; collapses to top-scroll when content
-           overflows (landscape) so the Kết nối button stays reachable -->
+           overflows (landscape) so the Connect button stays reachable -->
       <div class="m-auto w-full flex flex-col items-center">
       <!-- Offline banner if network is down altogether -->
       <div
@@ -475,8 +627,8 @@ onUnmounted(() => {
       >
         <span class="text-xl">📡</span>
         <div class="flex flex-col leading-tight">
-          <span class="font-bold">Mất kết nối mạng LAN</span>
-          <span class="opacity-90 mt-0.5">Bật Wi-Fi và ở cùng mạng LAN với Companion.</span>
+          <span class="font-bold">{{ t('client.offline.title') }}</span>
+          <span class="opacity-90 mt-0.5">{{ t('client.offline.hint') }}</span>
         </div>
       </div>
 
@@ -490,12 +642,10 @@ onUnmounted(() => {
         ></span>
         <div class="flex flex-col leading-tight flex-1">
           <span class="font-bold"
-            >Đang thử lại {{ connectionStore.reconnectAttempts }}/{{
-              connectionStore.maxReconnectAttempts
-            }}</span
+            >{{ t('client.reconnect.retrying', { current: connectionStore.reconnectAttempts, max: connectionStore.maxReconnectAttempts }) }}</span
           >
           <span class="opacity-90 mt-0.5"
-            >Sửa IP/Port bên dưới rồi nhấn Kết nối ngay để dừng chu kỳ.</span
+            >{{ t('client.reconnect.hint') }}</span
           >
           <span v-if="connectionStore.attemptingEndpoint" class="font-mono opacity-80 mt-1">
             {{ connectionStore.attemptingEndpoint }}
@@ -505,7 +655,7 @@ onUnmounted(() => {
           @click="connectionStore.cancelReconnect()"
           class="text-[10px] uppercase font-extrabold tracking-wider px-2 py-1 rounded-md bg-white/15 hover:bg-white/25 cursor-pointer"
         >
-          Hủy
+          {{ t('client.common.cancel') }}
         </button>
       </div>
 
@@ -520,10 +670,10 @@ onUnmounted(() => {
         <Icon icon="mdi:alert-circle" class="text-xl" />
         <div class="flex flex-col leading-tight flex-1">
           <span class="font-bold"
-            >Không kết nối được sau {{ connectionStore.maxReconnectAttempts }} lần thử</span
+            >{{ t('client.error.failedAfterAttempts', { max: connectionStore.maxReconnectAttempts }) }}</span
           >
           <span class="opacity-90 mt-0.5"
-            >Kiểm tra Companion đang chạy + IP/Port đúng rồi thử lại.</span
+            >{{ t('client.error.checkAndRetry') }}</span
           >
           <span v-if="connectionStore.attemptingEndpoint" class="font-mono opacity-80 mt-1">
             {{ connectionStore.attemptingEndpoint }}
@@ -547,11 +697,10 @@ onUnmounted(() => {
 
         <div class="flex flex-col gap-1">
           <h2 class="text-base font-extrabold text-slate-100 uppercase tracking-wider">
-            Chưa kết nối Companion
+            {{ t('client.connect.title') }}
           </h2>
           <p class="text-[10px] text-slate-500 leading-normal max-w-xs px-2">
-            Nhập địa chỉ IPv4 nội bộ và Port (ở Companion HUD góc phải) để đồng bộ hóa lưới phím
-            macro.
+            {{ t('client.connect.description') }}
           </p>
         </div>
 
@@ -559,12 +708,12 @@ onUnmounted(() => {
           <div class="flex gap-2">
             <div class="flex-1 flex flex-col gap-1.5 align-left text-left">
               <label class="text-[9px] uppercase tracking-wider font-extrabold text-slate-455"
-                >Địa chỉ IP:</label
+                >{{ t('client.connect.ipLabel') }}</label
               >
               <input
                 v-model="connectionStore.ipAddress"
                 type="text"
-                placeholder="e.g. 192.168.1.15"
+                :placeholder="t('client.connect.ipPlaceholder')"
                 class="w-full bg-slate-950 border text-slate-200 rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-slate-700 transition"
                 :class="
                   isSubmitted && !connectionStore.ipAddress
@@ -578,12 +727,12 @@ onUnmounted(() => {
             </div>
             <div class="w-20 flex flex-col gap-1.5 align-left text-left">
               <label class="text-[9px] uppercase tracking-wider font-extrabold text-slate-455"
-                >Port:</label
+                >{{ t('client.connect.portLabel') }}</label
               >
               <input
                 v-model="connectionStore.port"
                 type="text"
-                placeholder="Port"
+                :placeholder="t('client.connect.portPlaceholder')"
                 class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl px-2 py-2.5 text-center text-xs focus:outline-none focus:ring-1 focus:ring-slate-700 transition"
                 :disabled="
                   connectionStore.status === 'connecting' && !connectionStore.isReconnecting
@@ -607,7 +756,7 @@ onUnmounted(() => {
               class="text-base"
               :class="{ 'animate-spin': isScanningQr }"
             />
-            {{ isScanningQr ? 'Đang quét...' : showScanAgainCta ? 'Quét QR lại' : 'Quét QR từ Companion' }}
+            {{ isScanningQr ? t('client.scan.scanning') : showScanAgainCta ? t('client.scan.scanAgain') : t('client.scan.scanFromCompanion') }}
           </button>
         </div>
 
@@ -633,12 +782,12 @@ onUnmounted(() => {
             ></span>
             {{
               connectionStore.status === 'connecting' && !connectionStore.isReconnecting
-                ? 'Hủy'
+                ? t('client.common.cancel')
                 : connectionStore.status === 'connecting'
-                  ? 'Đang kết nối...'
+                  ? t('client.connect.connecting')
                   : connectionStore.status === 'error'
-                    ? 'Lỗi - Thử lại ngay'
-                    : 'Kết nối ngay'
+                    ? t('client.connect.retryError')
+                    : t('client.connect.connectNow')
             }}
           </button>
         </div>
@@ -675,10 +824,10 @@ onUnmounted(() => {
         class="text-base"
         :class="{ 'animate-spin': isScanningQr }"
       />
-      {{ isScanningQr ? 'Đang quét...' : 'Quét QR lại' }}
+      {{ isScanningQr ? t('client.scan.scanning') : t('client.scan.scanAgain') }}
     </button>
 
-    <!-- Settings Modal to inspect IP/Port or click 'Ngắt kết nối' -->
+    <!-- Settings Modal to inspect IP/Port or click 'Disconnect' -->
     <transition name="fade">
       <div
         v-if="settingsOpen"
@@ -701,13 +850,13 @@ onUnmounted(() => {
             <div
               class="h-8 w-8 rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center text-sm shadow"
             >
-              ⚙️
+              ⚙
             </div>
             <div>
               <h3 class="text-xs font-bold text-slate-50 uppercase tracking-wider">
-                Thông tin kết nối
+                {{ t('client.settings.title') }}
               </h3>
-              <p class="text-[9px] text-slate-500 uppercase font-bold mt-0.5">Companion config</p>
+              <p class="text-[9px] text-slate-500 uppercase font-bold mt-0.5">{{ t('client.settings.subtitle') }}</p>
             </div>
           </div>
 
@@ -717,13 +866,13 @@ onUnmounted(() => {
               class="flex flex-col gap-1 rounded-xl bg-slate-950/60 p-3 border border-slate-850/60 text-xs"
             >
               <div class="flex justify-between py-1 border-b border-slate-900/60">
-                <span class="text-slate-450 font-semibold">Server Address:</span>
+                <span class="text-slate-450 font-semibold">{{ t('client.settings.serverAddress') }}</span>
                 <span class="font-mono text-slate-200 font-bold">
                   {{ connectionStore.ipAddress }}:{{ connectionStore.port }}
                 </span>
               </div>
               <div class="flex justify-between py-1">
-                <span class="text-slate-450 font-semibold">Trạng thái:</span>
+                <span class="text-slate-450 font-semibold">{{ t('client.settings.status') }}</span>
                 <span
                   class="font-bold flex items-center gap-1.5"
                   :class="{
@@ -742,10 +891,10 @@ onUnmounted(() => {
                   ></span>
                   {{
                     connectionStore.status === 'connected'
-                      ? 'Đang hoạt động'
+                      ? t('client.settings.statusActive')
                       : connectionStore.isReconnecting
-                        ? 'Đang kết nối lại...'
-                        : 'Mất kết nối'
+                        ? t('client.settings.statusReconnecting')
+                        : t('client.settings.statusDisconnected')
                   }}
                 </span>
               </div>
@@ -756,7 +905,7 @@ onUnmounted(() => {
               class="flex flex-col gap-2 rounded-xl bg-slate-950/60 p-3 border border-slate-850/60"
             >
               <span class="text-[9px] uppercase tracking-wider font-extrabold text-slate-450"
-                >Xoay màn hình</span
+                >{{ t('client.settings.screenRotation') }}</span
               >
               <div class="grid grid-cols-2 gap-1.5">
                 <button
@@ -782,7 +931,7 @@ onUnmounted(() => {
             >
               <div class="flex items-center justify-between gap-2">
                 <span class="text-[9px] uppercase tracking-wider font-extrabold text-slate-450"
-                  >Cách lưới chiếm màn hình</span
+                  >{{ t('client.settings.fitModeLabel') }}</span
                 >
                 <span class="text-[9px] text-slate-500 font-mono">{{ displayFitMode }}</span>
               </div>
@@ -818,7 +967,7 @@ onUnmounted(() => {
               <div class="flex items-center gap-2">
                 <Icon icon="mdi:brightness-5" class="text-base text-slate-400" />
                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300"
-                  >Luôn bật màn hình</span
+                  >{{ t('client.settings.keepScreenOn') }}</span
                 >
               </div>
               <button
@@ -830,7 +979,7 @@ onUnmounted(() => {
                     : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                 "
               >
-                {{ keepScreenOn ? 'Bật' : 'Tắt' }}
+                {{ keepScreenOn ? t('client.common.on') : t('client.common.off') }}
               </button>
             </div>
 
@@ -841,7 +990,7 @@ onUnmounted(() => {
               <div class="flex items-center gap-2">
                 <Icon icon="mdi:vibrate" class="text-base text-slate-400" />
                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300"
-                  >Rung khi nhấn</span
+                  >{{ t('client.settings.vibrateOnTap') }}</span
                 >
               </div>
               <button
@@ -853,7 +1002,7 @@ onUnmounted(() => {
                     : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                 "
               >
-                {{ vibrateOnClick ? 'Bật' : 'Tắt' }}
+                {{ vibrateOnClick ? t('client.common.on') : t('client.common.off') }}
               </button>
             </div>
 
@@ -864,7 +1013,7 @@ onUnmounted(() => {
               <div class="flex items-center gap-2">
                 <Icon icon="mdi:volume-high" class="text-base text-slate-400" />
                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300"
-                  >Âm thanh khi nhấn</span
+                  >{{ t('client.settings.soundOnTap') }}</span
                 >
               </div>
               <button
@@ -876,7 +1025,7 @@ onUnmounted(() => {
                     : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
                 "
               >
-                {{ soundOnClick ? 'Bật' : 'Tắt' }}
+                {{ soundOnClick ? t('client.common.on') : t('client.common.off') }}
               </button>
             </div>
 
@@ -887,9 +1036,9 @@ onUnmounted(() => {
             >
               <Icon icon="mdi:battery-alert" class="text-amber-400 text-base mt-0.5 shrink-0" />
               <p class="text-[9px] leading-relaxed text-amber-300/80">
-                Nếu WiFi mất kết nối khi dùng pin, vào
-                <strong class="text-amber-200">Cài đặt → Ứng dụng → Pin → Không có hạn chế</strong>
-                để tắt tối ưu hóa pin cho app.
+                {{ t('client.settings.batteryHintPrefix') }}
+                <strong class="text-amber-200">{{ t('client.settings.batteryPath') }}</strong>
+                {{ t('client.settings.batteryHintSuffix') }}
               </p>
             </div>
 
@@ -897,7 +1046,7 @@ onUnmounted(() => {
               @click="handleDisconnect"
               class="w-full text-center text-xs font-bold uppercase tracking-wider py-2.5 rounded-xl border border-rose-900/30 bg-rose-950/80 text-rose-350 hover:bg-rose-900 hover:text-white transition duration-150 cursor-pointer"
             >
-              Ngắt kết nối
+              {{ t('client.settings.disconnect') }}
             </button>
           </div>
         </div>
@@ -928,7 +1077,7 @@ onUnmounted(() => {
           class="pointer-events-auto flex items-center gap-2 rounded-2xl bg-slate-950/75 backdrop-blur-sm px-4 py-2.5 text-xs font-extrabold uppercase tracking-wider text-slate-100 border border-white/10 shadow-xl"
         >
           <Icon icon="mdi:qrcode-scan" class="text-base text-violet-400" />
-          Đưa mã QR Companion vào khung
+          {{ t('client.scanOverlay.instruction') }}
         </div>
 
         <!-- Framing window: transparent centre, animated corner brackets -->
@@ -947,7 +1096,7 @@ onUnmounted(() => {
           @click="cancelScanQr"
         >
           <Icon icon="mdi:close" class="text-base" />
-          Hủy quét
+          {{ t('client.scanOverlay.cancel') }}
         </button>
       </div>
     </Teleport>
