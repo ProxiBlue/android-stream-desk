@@ -22,12 +22,20 @@ pnpm tauri android dev        # run Client on Android emulator/device
 pnpm build                    # vue-tsc -b && vite build (frontend type-check + bundle)
 pnpm tauri build              # Windows/macOS installer → src-tauri/target/release/bundle/
 pnpm tauri android build      # APK → src-tauri/gen/android/app/build/outputs/apk/release/
-cargo check --manifest-path src-tauri/Cargo.toml   # fast Rust type-check without launching app
+cargo check --manifest-path src-tauri/Cargo.toml   # fast Rust type-check without launching app (needs host toolchain)
+
+# No Rust toolchain on the host? Use the Docker env (docker/rust-dev, wrapper scripts/rust-env.sh):
+pnpm rust:test                # cargo test --lib in the container (Rust unit tests)
+pnpm rust:check               # cargo check in the container
+pnpm rust:build               # pnpm tauri build in the container → src-tauri/target/release/bundle/ (deb/AppImage run on host)
+pnpm rust:shell               # bash in the container, cwd src-tauri
+scripts/rust-env.sh android --debug --target aarch64 --apk   # APK in the android container (SDK+NDK+JDK) → gen/android/app/build/outputs/apk/
+pnpm test                     # frontend unit tests (node --experimental-strip-types, no runner)
 ```
 
 Dev server runs on **fixed** port 1420 (`strictPort: true` in `vite.config.ts`) with HMR on 1421, bound to `0.0.0.0` so an Android dev build can reach the host. The WebSocket server is a **separate** port (`8089`) started by Rust in `setup()`.
 
-There is no test suite, lint config, or CI runner currently committed — don't claim "tests pass"; there are none to run.
+Tests: Rust unit tests live in `#[cfg(test)]` modules (`pnpm rust:test` or `cargo test --lib`), frontend ones are plain node assert scripts wired into `pnpm test`. No lint config or CI runner is committed. Only claim "tests pass" after actually running both.
 
 ## Architecture
 
@@ -47,7 +55,7 @@ Dashboard (same app) ──invoke("save_layout_config")──> writes layout.jso
 ### Frontend state
 
 - Pinia stores in `src/stores/`:
-  - `connection.ts` — owns the `WebSocket`, heartbeat (ping every 5s, dead if no traffic between ticks), auto-reconnect every 3s. Note the `socket.value !== ws` stale-close guard in `onclose` — preserve it; without it a superseded socket's async close resets a freshly-opened one's status.
+  - `connection.ts` — owns the `WebSocket`, heartbeat (ping every 5s, dead if no traffic between ticks), auto-reconnect: loopback targets (USB mode) every 2s unlimited; Wi-Fi targets 3 tries at 3s before the first connection, then 3 silent tries at 30s. Note the `socket.value !== ws` stale-close guard in `onclose` — preserve it; without it a superseded socket's async close resets a freshly-opened one's status.
   - `layout.ts` — single source of truth for the grid. The `ws-message` `CustomEvent` bridge is the path WS payloads take into Pinia; `wsListenerAttached` module flag prevents duplicate listeners across HMR.
 - `layout.ts` branches on `window.__TAURI_INTERNALS__` to decide between IPC (`invoke('save_layout_config')` / `invoke('execute_button_action')`) and pure-WS paths — the same component runs in both companion and client contexts.
 - `lastToast` in the layout store is how server-side action errors surface in the UI (see `broadcast_toast` in Rust).
