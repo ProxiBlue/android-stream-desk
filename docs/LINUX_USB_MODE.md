@@ -26,6 +26,8 @@ linux/
 
 ## One-time setup
 
+**0. Lock the Companion to loopback (recommended).** By default the Companion listens on `0.0.0.0`, so it stays reachable from the LAN even while you use USB. `adb reverse` only ever talks to the PC's `127.0.0.1`, so in USB mode you can close the network side entirely: in the Companion open **Settings → Network → Listen Scope** and switch it to **USB Only**, then let it relaunch. Or edit `server.json` directly and set `"loopbackOnly": true` — see [CONFIGURATION.md](CONFIGURATION.md) for the file's location. Default is `false` (LAN mode), so nothing changes unless you opt in.
+
 **1. Install the Companion** as a normal desktop app that starts with your
 session (a systemd `--user` unit, since it's a GUI app with a tray icon —
 same idea as any other app you want running when you log in):
@@ -69,7 +71,9 @@ one log line).
    needs doing once per PC; the authorization is tied to this machine's
    adb key, not the USB port, and survives reboots/replugs.
 5. Open the Android Stream Desk app, and set its connection address to
-   `127.0.0.1` (not a LAN IP) and port `8089`.
+   `127.0.0.1` (not a LAN IP) and port `8089`. With `loopbackOnly` on, the
+   Companion's connect QR code already encodes `127.0.0.1`, so scanning it
+   works too.
 
 ## Every time after that
 

@@ -33,6 +33,7 @@ const props = defineProps<{
     wsPort: string;
     webEnabled: boolean;
     webPort: string;
+    loopbackOnly: boolean;
   };
   serverConfigSaving: boolean;
   serverConfigError: string;
@@ -318,6 +319,43 @@ const onSettingsScroll = (e: Event) => {
                       class="text-sm"
                     />
                     {{ serverConfigDraft.webEnabled ? 'Web On' : 'Web Off' }}
+                  </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-center">
+                  <div class="flex flex-col gap-1">
+                    <span class="cyber-input-label">Listen Scope</span>
+                    <p class="text-[10px] leading-relaxed text-slate-500">
+                      <template v-if="serverConfigDraft.loopbackOnly">
+                        Listeners bind <span class="font-mono text-slate-300">127.0.0.1</span> only.
+                        Nothing on the LAN can connect; use USB mode (<span class="font-mono">adb reverse</span>).
+                      </template>
+                      <template v-else>
+                        Listeners bind all interfaces so phones on the LAN can connect over Wi-Fi.
+                      </template>
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    class="cyber-action-btn h-[38px] min-w-[116px] font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1.5 flex items-center justify-center gap-1.5"
+                    :class="
+                      serverConfigDraft.loopbackOnly
+                        ? 'border-cyan-400/70 text-cyan-300 bg-slate-900/80 shadow shadow-cyan-900/20'
+                        : 'border-slate-750 text-slate-400 hover:border-slate-600'
+                    "
+                    :title="
+                      serverConfigDraft.loopbackOnly
+                        ? 'USB only: bind 127.0.0.1, unreachable from the LAN'
+                        : 'LAN: bind 0.0.0.0, reachable over Wi-Fi'
+                    "
+                    @click="serverConfigDraft.loopbackOnly = !serverConfigDraft.loopbackOnly"
+                  >
+                    <Icon
+                      :icon="serverConfigDraft.loopbackOnly ? 'lucide:usb' : 'lucide:wifi'"
+                      class="text-sm"
+                    />
+                    {{ serverConfigDraft.loopbackOnly ? 'USB Only' : 'LAN' }}
                   </button>
                 </div>
 

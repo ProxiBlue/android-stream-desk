@@ -29,6 +29,8 @@ interface ServerConfig {
   wsPort: number;
   webEnabled: boolean;
   webPort: number;
+  /** Bind listeners to 127.0.0.1 only (USB / adb reverse mode). Default false = LAN. */
+  loopbackOnly: boolean;
 }
 
 interface ListenerBindError {
@@ -44,6 +46,7 @@ interface ServerInfo {
   runningWsPort: number | null;
   webEnabled: boolean;
   webPort: number;
+  loopbackOnly: boolean;
   wsReady: boolean;
   wsBindError: ListenerBindError | null;
   webReady: boolean;
@@ -54,6 +57,7 @@ interface ServerConfigDraft {
   wsPort: string;
   webEnabled: boolean;
   webPort: string;
+  loopbackOnly: boolean;
 }
 
 type InputPermissionRecommendedAction =
@@ -199,12 +203,14 @@ const serverConfigDraft = ref<ServerConfigDraft>({
   wsPort: '8089',
   webEnabled: false,
   webPort: '8090',
+  loopbackOnly: false,
 });
 
 const toServerConfigDraft = (config: ServerConfig): ServerConfigDraft => ({
   wsPort: String(config.wsPort),
   webEnabled: config.webEnabled,
   webPort: String(config.webPort),
+  loopbackOnly: Boolean(config.loopbackOnly),
 });
 
 const parsePortDraft = (raw: string, label: string) => {
@@ -242,6 +248,8 @@ const hasPendingServerChanges = computed(() => {
     webEnabledSaved: persisted?.webEnabled ?? false,
     webPortDraft: serverConfigDraft.value.webPort,
     webPortSaved: persisted?.webPort ?? null,
+    loopbackOnlyDraft: serverConfigDraft.value.loopbackOnly,
+    loopbackOnlySaved: persisted?.loopbackOnly ?? false,
   });
 });
 
@@ -376,6 +384,7 @@ const buildServerConfigPayload = (): ServerConfig | null => {
     wsPort: ws.value,
     webEnabled: serverConfigDraft.value.webEnabled,
     webPort: web.value,
+    loopbackOnly: serverConfigDraft.value.loopbackOnly,
   };
 };
 
@@ -851,7 +860,12 @@ onMounted(async () => {
       ensurePermissionPoll();
       window.addEventListener('focus', probePermission);
     } else {
-      const fallback = { wsPort: serverPort.value, webEnabled: false, webPort: 8090 };
+      const fallback = {
+        wsPort: serverPort.value,
+        webEnabled: false,
+        webPort: 8090,
+        loopbackOnly: false,
+      };
       wsReady.value = true;
       runningWsPort.value = serverPort.value;
       savedServerConfig.value = fallback;
@@ -861,7 +875,12 @@ onMounted(async () => {
   } catch (e) {
     console.error('Failed initialization:', e);
     if (!serverConfigLoaded.value) {
-      const fallback = { wsPort: serverPort.value, webEnabled: false, webPort: 8090 };
+      const fallback = {
+        wsPort: serverPort.value,
+        webEnabled: false,
+        webPort: 8090,
+        loopbackOnly: false,
+      };
       wsReady.value = true;
       runningWsPort.value = serverPort.value;
       savedServerConfig.value = fallback;
