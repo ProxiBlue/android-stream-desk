@@ -13,6 +13,7 @@ use tauri::{AppHandle, Listener, Manager};
 pub mod accessibility;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod metrics;
+pub mod usb_bridge;
 pub mod webserver;
 pub mod websocket;
 
@@ -37,6 +38,16 @@ pub struct ServerConfig {
     /// files (written before this field existed) loading as LAN mode.
     #[serde(default)]
     pub loopback_only: bool,
+    /// Optional explicit path to the `adb` executable used by the USB bridge
+    /// (only relevant when `loopback_only` is true). `None` = search `PATH`
+    /// and well-known Android SDK locations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adb_path: Option<String>,
+    /// Optional path to the Android client APK the USB bridge installs on
+    /// phones that do not have the app yet. `None` = look for
+    /// `android-stream-desk.apk` next to the executable / in the config dir.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub apk_path: Option<String>,
 }
 
 impl Default for ServerConfig {
@@ -46,6 +57,8 @@ impl Default for ServerConfig {
             web_enabled: false,
             web_port: WEB_PORT,
             loopback_only: false,
+            adb_path: None,
+            apk_path: None,
         }
     }
 }
@@ -342,6 +355,11 @@ impl ServerInfo {
             },
         }
     }
+}
+
+#[tauri::command]
+fn get_usb_bridge_status() -> usb_bridge::UsbBridgeStatus {
+    usb_bridge::current_usb_bridge_status()
 }
 
 #[tauri::command]
@@ -1280,6 +1298,7 @@ pub fn run() {
             export_layout_to_path,
             execute_button_action,
             get_server_info,
+            get_usb_bridge_status,
             set_android_orientation,
             open_accessibility_settings,
             probe_input_permission,
@@ -1313,6 +1332,21 @@ pub fn run() {
                         eprintln!("Failed to load server config, using defaults: {}", e);
                         ServerConfig::default()
                     });
+                // USB plug-and-play: only meaningful when the listeners are
+                // loopback-only, i.e. the phone reaches us via `adb reverse`.
+                #[cfg(desktop)]
+                {
+                    if server_config.loopback_only {
+                        let app_handle_usb = app_handle_ws.clone();
+                        let adb_path = server_config.adb_path.clone();
+                        let apk_path = server_config.apk_path.clone();
+                        let ws_port = server_config.ws_port;
+                        tauri::async_runtime::spawn(async move {
+                            usb_bridge::run_usb_bridge(adb_path, apk_path, ws_port, app_handle_usb)
+                                .await;
+                        });
+                    }
+                }
                 if server_config.web_enabled {
                     let app_handle_web = app_handle_ws.clone();
                     let web_config = webserver::WebServerConfig {
@@ -1437,6 +1471,8 @@ mod tests {
                 web_enabled: false,
                 web_port: 8090,
                 loopback_only: false,
+                adb_path: None,
+                apk_path: None,
             }
         );
     }
@@ -1450,6 +1486,8 @@ mod tests {
                 web_enabled: true,
                 web_port: 18090,
                 loopback_only: false,
+                adb_path: None,
+                apk_path: None,
             },
             ListenerBindStatus::ready(18089),
             ListenerBindStatus::bind_error(18090, "address already in use".to_string()),
@@ -1485,6 +1523,8 @@ mod tests {
             web_enabled: false,
             web_port: 8090,
             loopback_only: false,
+            adb_path: None,
+            apk_path: None,
         };
 
         assert!(validate_server_config(&config).is_err());
@@ -1497,6 +1537,8 @@ mod tests {
             web_enabled: true,
             web_port: 8089,
             loopback_only: false,
+            adb_path: None,
+            apk_path: None,
         };
 
         assert!(validate_server_config(&config).is_err());
@@ -1526,6 +1568,11 @@ mod tests {
         let opted_in = r#"{"wsPort":8089,"webEnabled":false,"webPort":8090,"loopbackOnly":true}"#;
         let config: ServerConfig = serde_json::from_str(opted_in).unwrap();
         assert!(config.loopback_only);
+        assert_eq!(config.adb_path, None);
+
+        let with_adb = r#"{"wsPort":8089,"webEnabled":false,"webPort":8090,"loopbackOnly":true,"adbPath":"/opt/adb"}"#;
+        let config: ServerConfig = serde_json::from_str(with_adb).unwrap();
+        assert_eq!(config.adb_path.as_deref(), Some("/opt/adb"));
     }
 
     #[test]
@@ -1568,6 +1615,8 @@ mod tests {
             web_enabled: true,
             web_port: 18090,
             loopback_only: false,
+            adb_path: None,
+            apk_path: None,
         };
 
         save_server_config_to_dir(&dir, &valid).await.unwrap();
@@ -1579,6 +1628,8 @@ mod tests {
             web_enabled: true,
             web_port: 18089,
             loopback_only: false,
+            adb_path: None,
+            apk_path: None,
         };
         assert!(save_server_config_to_dir(&dir, &invalid).await.is_err());
 
