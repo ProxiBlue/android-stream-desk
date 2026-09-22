@@ -824,7 +824,8 @@ const copyWebClientUrl = async () => {
             >
               <Icon
                 :icon="wsBindError ? 'lucide:wifi-off' : 'lucide:loader-2'"
-                class="text-lg animate-pulse text-rose-400"
+                class="text-lg text-rose-400"
+                :class="wsBindError ? '' : 'animate-spin'"
               />
               <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">
                 {{ wsBindError ? 'Bind Error' : 'Not ready' }}
@@ -897,7 +898,7 @@ const copyWebClientUrl = async () => {
                       ? 'lucide:settings-2'
                       : 'lucide:loader-2'
                 "
-                class="text-lg animate-pulse text-amber-400"
+                class="text-lg text-amber-400"
               />
               <span class="text-[9px] font-bold uppercase tracking-wider text-slate-400">
                 {{
@@ -1280,12 +1281,20 @@ const copyWebClientUrl = async () => {
               <div class="flex flex-col gap-2">
                 <span class="text-[9px] font-bold uppercase text-slate-400">Keyboard shortcut:</span>
                 <div class="relative flex items-center cyber-input-group overflow-hidden">
+                  <!-- Typeable as well as recordable: combos the OS or window
+                       manager grabs (desktop switching, macOS globals) never
+                       reach the recorder, so typing e.g. "Shift+F1" is the
+                       only way to assign them. Saved on Enter / blur. -->
                   <Input
                     v-model="selectedButton.shortcutValue"
                     type="text"
-                    placeholder="No key assigned"
-                    class="border-0 bg-transparent px-3 py-1.5 shadow-none"
-                    disabled
+                    placeholder="No key assigned — type e.g. Ctrl+Shift+T or press Record"
+                    class="border-0 bg-transparent px-3 py-1.5 shadow-none font-mono"
+                    :disabled="isRecording"
+                    spellcheck="false"
+                    autocomplete="off"
+                    @change="saveButtonSettings"
+                    @keydown.enter.prevent="saveButtonSettings"
                   />
                   <button
                     @click="toggleRecording"
@@ -1307,7 +1316,7 @@ const copyWebClientUrl = async () => {
               <!-- Modifier toggles + manual key picker -->
               <div v-if="isRecording" class="flex flex-col gap-2 pt-2 cyber-divider">
                 <span class="text-[9px] font-bold uppercase tracking-widest text-slate-500">
-                  Or assign manually (for combinations blocked by macOS):
+                  Or assign manually (for combinations your OS grabs first, e.g. desktop switching, macOS globals):
                 </span>
                 <div class="grid grid-cols-4 gap-1.5">
                   <button
