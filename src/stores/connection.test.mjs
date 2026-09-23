@@ -26,6 +26,7 @@ globalThis.WebSocket = class FakeWebSocket {
     this.url = url;
     this.readyState = 0;
     this.closed = false;
+    this.sent = [];
     created.push(this);
     queueMicrotask(() => {
       if (behaviour === 'open') {
@@ -37,7 +38,9 @@ globalThis.WebSocket = class FakeWebSocket {
       }
     });
   }
-  send() {}
+  send(data) {
+    this.sent.push(data);
+  }
   close() {
     this.closed = true;
   }
@@ -111,6 +114,90 @@ assert.equal(await store.tryLoopbackAutoConnect(), true, 'Companion answers on l
 assert.equal(store.ipAddress, '127.0.0.1');
 assert.equal(storage.get('server_ip'), '127.0.0.1', 'adopted address is persisted');
 assert.ok(created.some(ws => ws.url === 'ws://127.0.0.1:8089'), 'real connect opened to loopback');
+store.disconnect();
+
+// ------------------------------------------------- sendOrQueue / revive
+const types = ws => ws.sent.map(d => JSON.parse(d).type);
+const tick = () => new Promise(r => setTimeout(r, 0));
+
+// Open socket: press goes straight out.
+setActivePinia(createPinia());
+storage.clear();
+store = useConnectionStore();
+store.isOnline = true;
+store.ipAddress = '127.0.0.1';
+store.port = '8089';
+behaviour = 'open';
+created.length = 0;
+store.connect();
+await tick();
+const live = created.at(-1);
+assert.equal(store.status, 'connected', 'socket opened');
+assert.equal(store.sendOrQueue({ type: 'press', payload: { id: 'a' } }), true, 'open socket → sent');
+assert.ok(types(live).includes('press'), 'press written to the socket');
+
+// Socket stale (screen was off): press is queued, not lost, and replayed on
+// the next open socket — this is the double-tap bug.
+live.readyState = 0;
+const beforeCount = created.length;
+assert.equal(
+  store.sendOrQueue({ type: 'press', payload: { id: 'queued' } }),
+  false,
+  'stale socket → reports not sent',
+);
+assert.ok(created.length > beforeCount, 'stale socket triggers an immediate reconnect');
+await tick();
+const revived = created.at(-1);
+const replayed = revived.sent.map(d => JSON.parse(d)).filter(m => m.type === 'press');
+assert.equal(replayed.length, 1, 'queued press replayed exactly once on reopen');
+assert.equal(replayed[0].payload.id, 'queued', 'the queued press is the one replayed');
+
+// A press older than the TTL is dropped rather than fired late.
+store.disconnect();
+setActivePinia(createPinia());
+store = useConnectionStore();
+store.isOnline = true;
+store.ipAddress = '127.0.0.1';
+store.port = '8089';
+behaviour = 'silent';
+created.length = 0;
+store.connect();
+await tick();
+const deadSock = created.at(-1);
+deadSock.readyState = 0;
+store.sendOrQueue({ type: 'press', payload: { id: 'stale' } });
+// Backdate beyond the 5s TTL by replaying through a fresh open socket later.
+const realNow = Date.now;
+Date.now = () => realNow() + 6000;
+behaviour = 'open';
+store.connect();
+await tick();
+Date.now = realNow;
+const afterTtl = created.at(-1);
+assert.equal(
+  afterTtl.sent.map(d => JSON.parse(d).type).filter(t => t === 'press').length,
+  0,
+  'press older than the TTL is dropped, not fired late',
+);
+store.disconnect();
+
+// revive() on a healthy socket probes it instead of tearing it down.
+setActivePinia(createPinia());
+store = useConnectionStore();
+store.isOnline = true;
+store.ipAddress = '127.0.0.1';
+store.port = '8089';
+behaviour = 'open';
+created.length = 0;
+store.connect();
+await tick();
+const healthy = created.at(-1);
+const countBeforeRevive = created.length;
+healthy.sent.length = 0;
+store.revive();
+assert.equal(healthy.closed, false, 'healthy socket is not torn down by revive()');
+assert.equal(created.length, countBeforeRevive, 'healthy socket: no new socket opened');
+assert.ok(types(healthy).includes('ping'), 'revive() probes the socket with a ping');
 store.disconnect();
 
 console.log('✅ connection store tests passed');
