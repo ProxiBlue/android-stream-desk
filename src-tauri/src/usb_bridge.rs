@@ -45,6 +45,10 @@ pub const DEFAULT_APK_NAME: &str = "android-stream-desk.apk";
 const ADB_MISSING_RETRY: Duration = Duration::from_secs(10);
 const ADB_RESTART_DELAY: Duration = Duration::from_secs(2);
 const REVERSE_RETRY_DELAY: Duration = Duration::from_millis(1500);
+/// How often a failed `adb reverse` on an allowed phone is retried. adb only
+/// sends a new device list on attach/detach, so without this a failure
+/// (port briefly taken, phone still settling) would stick until a replug.
+const REVERSE_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -354,6 +358,20 @@ async fn install_apk(adb: &Path, serial: &str, apk: &Path) -> Result<(), String>
     adb_run(adb, &["-s", serial, "install", "-r", &apk_str]).await.map(|_| ())
 }
 
+/// `adb reverse` fails like this when something on the phone already listens
+/// on the port, e.g. an older client build that still ran its own server.
+pub fn is_bind_conflict(err: &str) -> bool {
+    let e = err.to_ascii_lowercase();
+    e.contains("cannot bind") || e.contains("address already in use")
+}
+
+/// An allowed phone is ready on USB but has no forward yet: try again.
+pub fn needs_reverse_retry(devices: &[UsbDevice]) -> bool {
+    devices
+        .iter()
+        .any(|d| d.allowed && d.state == "device" && !d.reversed)
+}
+
 async fn remove_reverse(adb: &Path, serial: &str, port: u16) -> Result<(), String> {
     let spec = format!("tcp:{}", port);
     adb_run(adb, &["-s", serial, "reverse", "--remove", spec.as_str()])
@@ -434,28 +452,35 @@ async fn handle_device_list(
     ws_port: u16,
     frame: &str,
     reversed: &mut HashSet<String>,
+    cleared: &mut HashSet<String>,
     app: &tauri::AppHandle,
-) {
+) -> bool {
     let policy = current_policy();
     let listed: Vec<(String, String)> = parse_device_list(frame)
         .into_iter()
         .filter(|(serial, _)| is_usb_serial(serial))
         .collect();
 
-    // A phone the user just removed from the allowlist: drop its forward so
-    // it stops reaching the Companion right away, not only after a replug.
-    let revoked: Vec<String> = reversed
-        .iter()
-        .filter(|serial| !policy.allows(serial))
-        .cloned()
-        .collect();
-    for serial in &revoked {
-        if listed.iter().any(|(s, state)| s == serial && state == "device") {
-            match remove_reverse(adb, serial, ws_port).await {
-                Ok(()) => println!("USB bridge: removed adb reverse for {}", serial),
-                Err(e) => eprintln!("USB bridge: adb reverse --remove failed for {}: {}", serial, e),
-            }
+    // A phone that is not allowed must not reach the Companion, whether the
+    // forward is ours (the user just clicked Remove) or left over from an
+    // older build or a manual `adb reverse`. Clear our port once each time
+    // such a phone shows up; `cleared` remembers it until it leaves or is
+    // allowed.
+    cleared.retain(|serial| {
+        !policy.allows(serial)
+            && listed
+                .iter()
+                .any(|(s, state)| s == serial && state == "device")
+    });
+    for (serial, state) in &listed {
+        if state != "device" || policy.allows(serial) || cleared.contains(serial) {
+            continue;
         }
+        // Errors are expected: usually there is simply no such forward.
+        if remove_reverse(adb, serial, ws_port).await.is_ok() {
+            println!("USB bridge: removed adb reverse tcp:{} for {} (not allowed)", ws_port, serial);
+        }
+        cleared.insert(serial.clone());
     }
 
     // Forget devices that went away, dropped out of `device` state or were
@@ -488,6 +513,14 @@ async fn handle_device_list(
         let mut result = reverse_port(adb, serial, ws_port).await;
         if result.is_err() {
             // Device may still be settling right after authorisation.
+            tokio::time::sleep(REVERSE_RETRY_DELAY).await;
+            result = reverse_port(adb, serial, ws_port).await;
+        }
+        if matches!(&result, Err(e) if is_bind_conflict(e)) {
+            // Most likely an older client build holding the port with its own
+            // server. It is about to be (re)launched anyway: stop it, retry.
+            println!("USB bridge: port {} taken on {}; stopping {} and retrying", ws_port, serial, APP_PACKAGE);
+            let _ = adb_run(adb, &["-s", serial, "shell", "am", "force-stop", APP_PACKAGE]).await;
             tokio::time::sleep(REVERSE_RETRY_DELAY).await;
             result = reverse_port(adb, serial, ws_port).await;
         }
@@ -526,7 +559,9 @@ async fn handle_device_list(
         _ => {}
     }
 
+    let retry = needs_reverse_retry(&devices);
     publish(app, status(Some(adb), state, devices, message));
+    retry
 }
 
 /// Overall bridge state for the status line. `pending` = a phone is ready on
@@ -624,6 +659,10 @@ pub async fn run_usb_bridge(
         // Last device list adb sent; replayed when the policy changes so an
         // "Allow" click links an already-plugged phone without a replug.
         let mut last_frame: Option<String> = None;
+        let mut cleared: HashSet<String> = HashSet::new();
+        let mut retry_pending = false;
+        let mut retry_tick = tokio::time::interval(REVERSE_RETRY_INTERVAL);
+        retry_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
         loop {
             tokio::select! {
@@ -634,13 +673,27 @@ pub async fn run_usb_bridge(
                     };
                     buf.extend_from_slice(&chunk[..n]);
                     while let Some(frame) = take_frame(&mut buf) {
-                        handle_device_list(&adb, apk.as_deref(), ws_port, &frame, &mut reversed, &app).await;
+                        retry_pending = handle_device_list(
+                            &adb, apk.as_deref(), ws_port, &frame, &mut reversed, &mut cleared, &app,
+                        )
+                        .await;
                         last_frame = Some(frame);
                     }
                 }
                 _ = USB_POLICY_CHANGED.notified() => {
                     if let Some(frame) = &last_frame {
-                        handle_device_list(&adb, apk.as_deref(), ws_port, frame, &mut reversed, &app).await;
+                        retry_pending = handle_device_list(
+                            &adb, apk.as_deref(), ws_port, frame, &mut reversed, &mut cleared, &app,
+                        )
+                        .await;
+                    }
+                }
+                _ = retry_tick.tick(), if retry_pending => {
+                    if let Some(frame) = &last_frame {
+                        retry_pending = handle_device_list(
+                            &adb, apk.as_deref(), ws_port, frame, &mut reversed, &mut cleared, &app,
+                        )
+                        .await;
                     }
                 }
             }
@@ -773,6 +826,20 @@ mod tests {
             "B".to_string(),
         ]);
         assert_eq!(got, vec!["B".to_string(), "A".to_string()]);
+    }
+
+    #[test]
+    fn bind_conflict_is_recognised() {
+        assert!(is_bind_conflict("adb: error: cannot bind listener: Address already in use"));
+        assert!(!is_bind_conflict("error: device offline"));
+    }
+
+    #[test]
+    fn retry_only_for_allowed_ready_phones_without_forward() {
+        assert!(needs_reverse_retry(&[device("D", "device", false, true)]));
+        assert!(!needs_reverse_retry(&[device("D", "device", true, true)]), "already linked");
+        assert!(!needs_reverse_retry(&[device("P", "device", false, false)]), "not allowed");
+        assert!(!needs_reverse_retry(&[device("U", "unauthorized", false, true)]), "not ready");
     }
 
     #[test]
