@@ -1384,6 +1384,7 @@ pub fn run() {
             open_external_link
         ])
         .setup(|app| {
+            #[cfg(desktop)]
             let app_handle_ws = app.handle().clone();
             let app_handle_listener = app.handle().clone();
 
@@ -1399,7 +1400,13 @@ pub fn run() {
                 }
             }
 
-            // Spawn localized tokio WS thread pool on start
+            // Spawn localized tokio WS thread pool on start. Companion only: the
+            // same binary is the Android client, which must not open a server
+            // of its own. On the phone it bound 0.0.0.0:8089 (reachable from
+            // the phone's Wi-Fi) and, in USB mode, took the port before
+            // `adb reverse` could, so the client dialled 127.0.0.1 and
+            // connected to itself.
+            #[cfg(desktop)]
             tauri::async_runtime::spawn(async move {
                 let server_config = load_server_config_for_app(&app_handle_ws)
                     .await
