@@ -7,8 +7,12 @@
 //!
 //! 1. locate an `adb` binary (config override, `PATH`, common SDK paths),
 //! 2. `adb start-server`,
-//! 3. stream `adb track-devices` — the adb server pushes a fresh device list
-//!    on every USB attach/detach/authorise event,
+//! 3. open `host:track-devices` on the adb server's socket (what the
+//!    `adb track-devices` CLI does) — the server pushes a fresh device list
+//!    on every USB attach/detach/authorise event. Talking to the socket
+//!    directly means no long-lived child process that could outlive the
+//!    Companion (a killed or crashed Companion used to leave an orphaned
+//!    `adb track-devices` behind on every exit),
 //! 4. for every USB device that reaches state `device` **and is on the
 //!    user's allowlist** (`usbAllowedDevices`), run `adb reverse`, install the
 //!    client APK if the phone lacks it and `usbAutoInstall` is on (see
@@ -28,7 +32,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{Emitter, Manager};
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
 use tokio::process::Command;
 use tokio::sync::Notify;
 
@@ -287,6 +292,52 @@ pub fn take_frame(buf: &mut Vec<u8>) -> Option<String> {
     let frame = String::from_utf8_lossy(&buf[4..4 + len]).into_owned();
     buf.drain(..4 + len);
     Some(frame)
+}
+
+/// adb server port: `ANDROID_ADB_SERVER_PORT` if set (adb honours it too),
+/// else the default 5037.
+fn adb_server_port() -> u16 {
+    std::env::var("ANDROID_ADB_SERVER_PORT")
+        .ok()
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(5037)
+}
+
+/// Encode an adb host-protocol request: 4 hex digits of length, then payload.
+pub fn encode_host_request(payload: &str) -> String {
+    format!("{:04x}{}", payload.len(), payload)
+}
+
+/// Open the `host:track-devices` stream on the adb server. After the
+/// `OKAY` status the socket carries the same length-prefixed device-list
+/// frames [`take_frame`] parses. The socket closes with this process, so
+/// nothing is left running when the Companion exits.
+async fn open_track_devices() -> Result<TcpStream, String> {
+    let port = adb_server_port();
+    let mut stream = TcpStream::connect(("127.0.0.1", port))
+        .await
+        .map_err(|e| format!("cannot reach the adb server on port {}: {}", port, e))?;
+    stream
+        .write_all(encode_host_request("host:track-devices").as_bytes())
+        .await
+        .map_err(|e| format!("adb server write failed: {}", e))?;
+    let mut status = [0u8; 4];
+    stream
+        .read_exact(&mut status)
+        .await
+        .map_err(|e| format!("adb server closed the connection: {}", e))?;
+    if &status == b"OKAY" {
+        return Ok(stream);
+    }
+    // `FAIL` is followed by a length-prefixed reason.
+    let mut rest = Vec::new();
+    let _ = stream.read_to_end(&mut rest).await;
+    let reason = take_frame(&mut rest).unwrap_or_default();
+    Err(format!(
+        "adb server refused track-devices: {} {}",
+        String::from_utf8_lossy(&status),
+        reason
+    ))
 }
 
 /// Parse a device-list frame into `(serial, state)` pairs.
@@ -623,34 +674,13 @@ pub async fn run_usb_bridge(
 
         publish(&app, status(Some(&adb), "waiting", Vec::new(), None));
 
-        let mut child = match adb_command(&adb)
-            .arg("track-devices")
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .stdin(std::process::Stdio::null())
-            .kill_on_drop(true)
-            .spawn()
-        {
-            Ok(child) => child,
+        let mut stream = match open_track_devices().await {
+            Ok(stream) => stream,
             Err(e) => {
-                publish(
-                    &app,
-                    status(
-                        Some(&adb),
-                        "error",
-                        Vec::new(),
-                        Some(format!("adb track-devices failed to start: {}", e)),
-                    ),
-                );
+                publish(&app, status(Some(&adb), "error", Vec::new(), Some(e)));
                 tokio::time::sleep(ADB_RESTART_DELAY).await;
                 continue;
             }
-        };
-
-        let Some(mut stdout) = child.stdout.take() else {
-            let _ = child.kill().await;
-            tokio::time::sleep(ADB_RESTART_DELAY).await;
-            continue;
         };
 
         let mut buf: Vec<u8> = Vec::new();
@@ -666,7 +696,7 @@ pub async fn run_usb_bridge(
 
         loop {
             tokio::select! {
-                read = stdout.read(&mut chunk) => {
+                read = stream.read(&mut chunk) => {
                     let n = match read {
                         Ok(0) | Err(_) => break,
                         Ok(n) => n,
@@ -699,7 +729,6 @@ pub async fn run_usb_bridge(
             }
         }
 
-        let _ = child.kill().await;
         publish(
             &app,
             status(
@@ -826,6 +855,11 @@ mod tests {
             "B".to_string(),
         ]);
         assert_eq!(got, vec!["B".to_string(), "A".to_string()]);
+    }
+
+    #[test]
+    fn host_request_is_length_prefixed_hex() {
+        assert_eq!(encode_host_request("host:track-devices"), "0012host:track-devices");
     }
 
     #[test]
