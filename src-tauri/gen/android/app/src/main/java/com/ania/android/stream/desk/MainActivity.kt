@@ -20,27 +20,49 @@ class MainActivity : TauriActivity() {
   // `adb reverse`), where a Wi-Fi performance lock is pure battery drain.
   @Volatile private var wifiLockWanted = true
 
+  // Screen behaviour mirrors the client's settings (Keep Screen On, Show Over
+  // Lock Screen). The WebView pushes them through AndroidScreen; they are
+  // persisted here too so a cold start (e.g. the Companion launching us over
+  // USB) applies them before the page has loaded.
+  private val screenPrefs by lazy { getSharedPreferences("screen", Context.MODE_PRIVATE) }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
-    // A macro pad is useless behind a lock screen: keep the display on (and
-    // therefore unlocked) for as long as this activity is in the foreground.
-    // Window-scoped, so it needs no WAKE_LOCK permission and releases itself
-    // the moment the user switches away.
-    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-    // Dedicated-deck behaviour: when the Companion launches us over USB the
-    // phone may be dark on the desk. Turn the screen on and show over the
-    // lock screen so the grid is immediately usable. Note this deliberately
-    // makes the grid reachable without unlocking the phone.
+    // When the Companion launches us over USB the phone may be dark on the
+    // desk: turn the screen on. Without Show Over Lock Screen the user still
+    // unlocks as usual.
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-      setShowWhenLocked(true)
       setTurnScreenOn(true)
     } else {
       @Suppress("DEPRECATION")
-      window.addFlags(
-        WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-          WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-      )
+      window.addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+    }
+    applyKeepScreenOn(screenPrefs.getBoolean(PREF_KEEP_SCREEN_ON, false))
+    applyShowWhenLocked(screenPrefs.getBoolean(PREF_SHOW_WHEN_LOCKED, false))
+  }
+
+  // Window-scoped: needs no WAKE_LOCK permission and releases itself the
+  // moment the user switches away.
+  private fun applyKeepScreenOn(enabled: Boolean) {
+    if (enabled) {
+      window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    } else {
+      window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+  }
+
+  // Opt-in (default off): makes the grid usable without unlocking the phone,
+  // which suits a dedicated desk deck but not a personal phone.
+  private fun applyShowWhenLocked(enabled: Boolean) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+      setShowWhenLocked(enabled)
+    } else if (enabled) {
+      @Suppress("DEPRECATION")
+      window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
+    } else {
+      @Suppress("DEPRECATION")
+      window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
     }
   }
 
@@ -53,6 +75,21 @@ class MainActivity : TauriActivity() {
   override fun onWebViewCreate(webView: WebView) {
     webView.addJavascriptInterface(OrientationBridge(), "AndroidOrientation")
     webView.addJavascriptInterface(WifiLockBridge(), "AndroidWifiLock")
+    webView.addJavascriptInterface(ScreenBridge(), "AndroidScreen")
+  }
+
+  inner class ScreenBridge {
+    @JavascriptInterface
+    fun setKeepScreenOn(enabled: Boolean) {
+      screenPrefs.edit().putBoolean(PREF_KEEP_SCREEN_ON, enabled).apply()
+      runOnUiThread { applyKeepScreenOn(enabled) }
+    }
+
+    @JavascriptInterface
+    fun setShowWhenLocked(enabled: Boolean) {
+      screenPrefs.edit().putBoolean(PREF_SHOW_WHEN_LOCKED, enabled).apply()
+      runOnUiThread { applyShowWhenLocked(enabled) }
+    }
   }
 
   inner class WifiLockBridge {
@@ -131,5 +168,10 @@ class MainActivity : TauriActivity() {
         }
       )
     } catch (_: Exception) {}
+  }
+
+  companion object {
+    private const val PREF_KEEP_SCREEN_ON = "keep_screen_on"
+    private const val PREF_SHOW_WHEN_LOCKED = "show_when_locked"
   }
 }

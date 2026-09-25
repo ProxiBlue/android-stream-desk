@@ -19,8 +19,26 @@ import {
 const connectionStore = useConnectionStore();
 const layoutStore = useLayoutStore();
 const settingsStore = useSettingsStore();
-const { keepScreenOn, vibrateOnClick, soundOnClick, displayFitMode } =
+const { keepScreenOn, showWhenLocked, vibrateOnClick, soundOnClick, displayFitMode } =
   storeToRefs(settingsStore);
+
+// Native screen flags (MainActivity AndroidScreen bridge). Absent on the web
+// client and on older APKs, where only the Wake Lock path below applies.
+const androidScreen = (window as any).AndroidScreen;
+const hasAndroidScreen = !!androidScreen;
+watch(
+  [keepScreenOn, showWhenLocked],
+  ([keepOn, overLock]) => {
+    if (!androidScreen) return;
+    try {
+      androidScreen.setKeepScreenOn(keepOn);
+      androidScreen.setShowWhenLocked(overLock);
+    } catch (e: any) {
+      console.warn('AndroidScreen bridge failed:', e);
+    }
+  },
+  { immediate: true }
+);
 
 const showConnectModal = computed(() => {
   return !connectionStore.hasConnectedOnce && connectionStore.status !== 'connected';
@@ -839,6 +857,35 @@ onUnmounted(() => {
                 "
               >
                 {{ keepScreenOn ? 'On' : 'Off' }}
+              </button>
+            </div>
+
+            <!-- Show over lock screen (Android only) -->
+            <div
+              v-if="hasAndroidScreen"
+              class="flex items-center justify-between rounded-xl bg-slate-950/60 px-3 py-2.5 border border-slate-850/60"
+            >
+              <div class="flex items-center gap-2">
+                <Icon icon="mdi:cellphone-lock" class="text-base text-slate-400" />
+                <div class="flex flex-col">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300"
+                    >Show Over Lock Screen</span
+                  >
+                  <span class="text-[9px] text-slate-500 leading-relaxed"
+                    >Grid usable without unlocking. For a dedicated desk phone.</span
+                  >
+                </div>
+              </div>
+              <button
+                @click="showWhenLocked = !showWhenLocked"
+                class="text-[10px] font-extrabold uppercase tracking-wider px-3 py-1.5 rounded-lg border transition duration-150 cursor-pointer"
+                :class="
+                  showWhenLocked
+                    ? 'bg-violet-600 border-violet-500 text-white shadow shadow-violet-900/40'
+                    : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                "
+              >
+                {{ showWhenLocked ? 'On' : 'Off' }}
               </button>
             </div>
 
