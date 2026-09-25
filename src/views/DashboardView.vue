@@ -35,18 +35,31 @@ interface ServerConfig {
   adbPath?: string | null;
   /** Optional APK the USB bridge auto-installs on fresh phones; file-only setting. */
   apkPath?: string | null;
+  /** USB bridge may install the APK on allowed phones. Default false. */
+  usbAutoInstall?: boolean;
+  /** adb serials the USB bridge serves; every other phone is ignored. */
+  usbAllowedDevices?: string[];
 }
 
 interface UsbBridgeDevice {
   serial: string;
   state: string;
   reversed: boolean;
+  allowed: boolean;
 }
 
 interface UsbBridgeStatus {
   enabled: boolean;
   adbPath: string | null;
-  state: 'disabled' | 'adb-missing' | 'waiting' | 'linked' | 'unauthorized' | 'error';
+  state:
+    | 'disabled'
+    | 'adb-missing'
+    | 'waiting'
+    | 'pending'
+    | 'installing'
+    | 'linked'
+    | 'unauthorized'
+    | 'error';
   devices: UsbBridgeDevice[];
   message: string | null;
 }
@@ -206,6 +219,29 @@ const toggleAutostart = async () => {
     };
   } finally {
     autostartLoading.value = false;
+  }
+};
+
+// --- USB bridge policy (applied live, no relaunch) ---
+const usbPolicySaving = ref(false);
+
+const updateUsbPolicy = async (policy: { allowedDevices: string[]; autoInstall: boolean }) => {
+  if (usbPolicySaving.value || !(window as any).__TAURI_INTERNALS__) return;
+  usbPolicySaving.value = true;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    // Returns the saved server.json so later network saves (which spread
+    // savedServerConfig) don't write a stale allowlist back.
+    savedServerConfig.value = await invoke<ServerConfig>('update_usb_bridge_policy', policy);
+  } catch (err: any) {
+    console.error('Failed to update USB bridge policy:', err);
+    layoutStore.lastToast = {
+      kind: 'error',
+      message: `Could not save USB device settings: ${err?.message || err}`,
+      at: Date.now(),
+    };
+  } finally {
+    usbPolicySaving.value = false;
   }
 };
 
@@ -1051,6 +1087,7 @@ onUnmounted(() => {
       :web-client-qr-svg="webClientQrSvg"
       :saved-server-config="savedServerConfig"
       :usb-bridge-status="usbBridgeStatus"
+      :usb-policy-saving="usbPolicySaving"
       :active-theme="activeTheme"
       :autostart-on="autostartOn"
       :autostart-loading="autostartLoading"
@@ -1066,6 +1103,7 @@ onUnmounted(() => {
       :is-mac="isMac"
       @set-theme="setTheme"
       @toggle-autostart="toggleAutostart"
+      @update-usb-policy="updateUsbPolicy"
       @save-network-settings-and-relaunch="saveNetworkSettingsAndRelaunch"
       @copy-web-client-url="copyWebClientUrl"
       @open-zoom-modal="openZoomModal"

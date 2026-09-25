@@ -48,6 +48,15 @@ pub struct ServerConfig {
     /// `android-stream-desk.apk` next to the executable / in the config dir.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub apk_path: Option<String>,
+    /// USB mode: install the client APK on allowed phones that lack the app.
+    /// Off by default so the Companion never installs software unasked.
+    #[serde(default)]
+    pub usb_auto_install: bool,
+    /// USB mode: adb serials of the phones the user picked as decks. The
+    /// bridge ignores every other phone (no reverse, no install, no launch),
+    /// so plugging in a personal phone to charge does nothing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub usb_allowed_devices: Vec<String>,
 }
 
 impl Default for ServerConfig {
@@ -59,6 +68,8 @@ impl Default for ServerConfig {
             loopback_only: false,
             adb_path: None,
             apk_path: None,
+            usb_auto_install: false,
+            usb_allowed_devices: Vec::new(),
         }
     }
 }
@@ -360,6 +371,28 @@ impl ServerInfo {
 #[tauri::command]
 fn get_usb_bridge_status() -> usb_bridge::UsbBridgeStatus {
     usb_bridge::current_usb_bridge_status()
+}
+
+/// Change which phones the USB bridge serves and whether it may install the
+/// APK. Persisted to server.json and applied live (no relaunch): the bridge
+/// re-evaluates the connected phones straight away. Returns the saved config
+/// so the Dashboard's copy stays in sync for later saves.
+#[tauri::command]
+async fn update_usb_bridge_policy(
+    app_handle: AppHandle,
+    allowed_devices: Vec<String>,
+    auto_install: bool,
+) -> Result<ServerConfig, String> {
+    let app_dir = app_handle
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Failed to resolve AppConfig: {}", e))?;
+    let mut config = load_server_config_from_dir(&app_dir).await;
+    config.usb_allowed_devices = usb_bridge::normalize_serials(allowed_devices);
+    config.usb_auto_install = auto_install;
+    save_server_config_to_dir(&app_dir, &config).await?;
+    usb_bridge::set_policy(usb_bridge::UsbPolicy::from_config(&config));
+    Ok(config)
 }
 
 #[tauri::command]
@@ -1299,6 +1332,7 @@ pub fn run() {
             execute_button_action,
             get_server_info,
             get_usb_bridge_status,
+            update_usb_bridge_policy,
             set_android_orientation,
             open_accessibility_settings,
             probe_input_permission,
@@ -1341,9 +1375,16 @@ pub fn run() {
                         let adb_path = server_config.adb_path.clone();
                         let apk_path = server_config.apk_path.clone();
                         let ws_port = server_config.ws_port;
+                        let policy = usb_bridge::UsbPolicy::from_config(&server_config);
                         tauri::async_runtime::spawn(async move {
-                            usb_bridge::run_usb_bridge(adb_path, apk_path, ws_port, app_handle_usb)
-                                .await;
+                            usb_bridge::run_usb_bridge(
+                                adb_path,
+                                apk_path,
+                                ws_port,
+                                policy,
+                                app_handle_usb,
+                            )
+                            .await;
                         });
                     }
                 }
@@ -1473,6 +1514,8 @@ mod tests {
                 loopback_only: false,
                 adb_path: None,
                 apk_path: None,
+                usb_auto_install: false,
+                usb_allowed_devices: Vec::new(),
             }
         );
     }
@@ -1488,6 +1531,8 @@ mod tests {
                 loopback_only: false,
                 adb_path: None,
                 apk_path: None,
+                usb_auto_install: false,
+                usb_allowed_devices: Vec::new(),
             },
             ListenerBindStatus::ready(18089),
             ListenerBindStatus::bind_error(18090, "address already in use".to_string()),
@@ -1525,6 +1570,8 @@ mod tests {
             loopback_only: false,
             adb_path: None,
             apk_path: None,
+            usb_auto_install: false,
+            usb_allowed_devices: Vec::new(),
         };
 
         assert!(validate_server_config(&config).is_err());
@@ -1539,6 +1586,8 @@ mod tests {
             loopback_only: false,
             adb_path: None,
             apk_path: None,
+            usb_auto_install: false,
+            usb_allowed_devices: Vec::new(),
         };
 
         assert!(validate_server_config(&config).is_err());
@@ -1573,6 +1622,14 @@ mod tests {
         let with_adb = r#"{"wsPort":8089,"webEnabled":false,"webPort":8090,"loopbackOnly":true,"adbPath":"/opt/adb"}"#;
         let config: ServerConfig = serde_json::from_str(with_adb).unwrap();
         assert_eq!(config.adb_path.as_deref(), Some("/opt/adb"));
+        // USB policy keys absent = no phone allowed, auto-install off.
+        assert!(!config.usb_auto_install);
+        assert!(config.usb_allowed_devices.is_empty());
+
+        let with_policy = r#"{"wsPort":8089,"webEnabled":false,"webPort":8090,"loopbackOnly":true,"usbAutoInstall":true,"usbAllowedDevices":["R58M12345"]}"#;
+        let config: ServerConfig = serde_json::from_str(with_policy).unwrap();
+        assert!(config.usb_auto_install);
+        assert_eq!(config.usb_allowed_devices, vec!["R58M12345".to_string()]);
     }
 
     #[test]
@@ -1617,6 +1674,8 @@ mod tests {
             loopback_only: false,
             adb_path: None,
             apk_path: None,
+            usb_auto_install: false,
+            usb_allowed_devices: Vec::new(),
         };
 
         save_server_config_to_dir(&dir, &valid).await.unwrap();
@@ -1630,6 +1689,8 @@ mod tests {
             loopback_only: false,
             adb_path: None,
             apk_path: None,
+            usb_auto_install: false,
+            usb_allowed_devices: Vec::new(),
         };
         assert!(save_server_config_to_dir(&dir, &invalid).await.is_err());
 

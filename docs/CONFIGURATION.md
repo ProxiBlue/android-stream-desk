@@ -26,6 +26,8 @@ The file is created with defaults on first launch if it does not exist.
 | `loopbackOnly` | boolean | `false` | USB mode: bind both listeners to `127.0.0.1` and manage `adb reverse` automatically. See below. |
 | `adbPath` | string | absent | Full path to the `adb` executable for USB mode. Absent = search `PATH` and known Android SDK folders. |
 | `apkPath` | string | absent | Android client APK the USB bridge installs on phones that lack the app. Absent = use `android-stream-desk.apk` next to the Companion executable or in this config dir, if present. |
+| `usbAllowedDevices` | string[] | absent (none) | adb serials of the phones the USB bridge serves. Every other phone is ignored. Edited from **Settings → Network → USB Phones**. |
+| `usbAutoInstall` | boolean | `false` | Let the USB bridge install the client APK on allowed phones that lack the app. |
 
 Keys are camelCase on disk (serde `rename_all = "camelCase"`). Unknown keys are ignored. A missing `loopbackOnly` is treated as `false`, so files written by older builds keep working unchanged.
 
@@ -36,13 +38,21 @@ Default `false`: the Companion listens on all interfaces, which is what Wi-Fi / 
 Set to `true` for **USB mode** (see [USB_MODE.md](USB_MODE.md)). Two things happen:
 
 - Both listeners bind `127.0.0.1`, so no other machine on the network can open the WebSocket or HTTP port at all. The Dashboard shows `127.0.0.1` as the server address and the connect QR code encodes that address, which is what the phone must dial in USB mode.
-- The Companion starts its USB bridge: it locates `adb`, watches `adb track-devices`, and runs `adb reverse tcp:<wsPort> tcp:<wsPort>` for every USB-attached phone as it appears. Replugging re-establishes the forward automatically.
+- The Companion starts its USB bridge: it locates `adb`, watches `adb track-devices`, and runs `adb reverse tcp:<wsPort> tcp:<wsPort>` for every allowed USB-attached phone (see `usbAllowedDevices`) as it appears. Replugging re-establishes the forward automatically.
 
 The toggle for this is **Settings → Network → Listen Scope** (`LAN` / `USB Only`).
 
+### `usbAllowedDevices`
+
+Only read when `loopbackOnly` is `true`. The bridge only touches phones whose adb serial is in this list: no `adb reverse`, no install and no launch for any other phone, so plugging in a personal phone to charge does nothing. An unlisted phone is shown in **Settings → Network → USB Phones** with an **Allow** button; allowing or removing a phone is saved here and applied at once, without a restart. Removing a phone that is plugged in also drops its `adb reverse` forward. Absent or empty means no phone is served.
+
+### `usbAutoInstall`
+
+Only read when `loopbackOnly` is `true`. Default `false`: an allowed phone without the app gets a status message asking you to install it. When `true`, the bridge installs the APK (see `apkPath`) instead. Toggled from **Settings → Network → USB Phones → Auto-install app**, applied at once.
+
 ### `apkPath`
 
-Only read when `loopbackOnly` is `true`. When a USB phone shows up without the client app, the bridge runs `adb install -r` with this APK, then launches the app. Without `apkPath`, the Companion looks for `android-stream-desk.apk` beside its own executable and then in this config directory. If none exists, auto-install is off and the status line says so. Phones that already have the app are only launched, never reinstalled.
+Only read when `loopbackOnly` and `usbAutoInstall` are `true`. When an allowed USB phone shows up without the client app, the bridge runs `adb install -r` with this APK, then launches the app. Without `apkPath`, the Companion looks for `android-stream-desk.apk` beside its own executable and then in this config directory. If none exists, nothing is installed and the status line says so. Phones that already have the app are only launched, never reinstalled.
 
 ### `adbPath`
 
@@ -69,8 +79,10 @@ Listeners bind once at startup. After editing `server.json` by hand, restart the
   "webEnabled": false,
   "webPort": 8090,
   "loopbackOnly": true,
-  "adbPath": "/usr/bin/adb"
+  "adbPath": "/usr/bin/adb",
+  "usbAllowedDevices": ["R58M12345"],
+  "usbAutoInstall": false
 }
 ```
 
-`adbPath` is optional; drop the line if `adb` is on `PATH`.
+`adbPath` is optional; drop the line if `adb` is on `PATH`. The serial is what `adb devices` prints; it is easier to plug the phone in and click **Allow** than to type it.

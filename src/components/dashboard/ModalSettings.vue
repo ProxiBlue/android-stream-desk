@@ -30,9 +30,10 @@ const props = defineProps<{
     enabled: boolean;
     adbPath: string | null;
     state: string;
-    devices: Array<{ serial: string; state: string; reversed: boolean }>;
+    devices: Array<{ serial: string; state: string; reversed: boolean; allowed: boolean }>;
     message: string | null;
   } | null;
+  usbPolicySaving: boolean;
   activeTheme: ThemeName;
   autostartOn: boolean;
   autostartLoading: boolean;
@@ -57,6 +58,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: boolean): void;
   (e: 'setTheme', name: ThemeName): void;
   (e: 'toggleAutostart'): void;
+  (e: 'updateUsbPolicy', policy: { allowedDevices: string[]; autoInstall: boolean }): void;
   (e: 'saveNetworkSettingsAndRelaunch'): void;
   (e: 'copyWebClientUrl'): void;
   (e: 'openZoomModal', title: string, payload: string, svg: string): void;
@@ -107,6 +109,13 @@ const usbBridgeView = computed(() => {
         label: `USB linked: ${linked.join(', ')}`,
         detail: 'adb reverse active. Phone reconnects on its own.',
       };
+    case 'pending':
+      return {
+        icon: 'lucide:smartphone',
+        classes: 'text-amber-300',
+        label: 'Phone connected, not allowed yet',
+        detail: s.message ?? 'Allow it below to use it as a deck.',
+      };
     case 'unauthorized':
       return {
         icon: 'lucide:smartphone',
@@ -144,6 +153,37 @@ const usbBridgeView = computed(() => {
       };
   }
 });
+
+const usbAllowedDevices = computed<string[]>(() => props.savedServerConfig?.usbAllowedDevices ?? []);
+const usbAutoInstall = computed<boolean>(() => Boolean(props.savedServerConfig?.usbAutoInstall));
+
+// Connected USB phones plus allowed phones that are not plugged in right
+// now, so an allowed serial can be removed without plugging it back in.
+const usbDeviceRows = computed(() => {
+  const connected = props.usbBridgeStatus?.devices ?? [];
+  const rows = connected.map(d => ({
+    serial: d.serial,
+    allowed: usbAllowedDevices.value.includes(d.serial),
+    status: d.reversed ? 'linked' : d.state === 'device' ? 'connected' : d.state,
+  }));
+  for (const serial of usbAllowedDevices.value) {
+    if (!rows.some(r => r.serial === serial)) {
+      rows.push({ serial, allowed: true, status: 'not connected' });
+    }
+  }
+  return rows;
+});
+
+const toggleUsbDevice = (serial: string) => {
+  const allowed = usbAllowedDevices.value.includes(serial)
+    ? usbAllowedDevices.value.filter(s => s !== serial)
+    : [...usbAllowedDevices.value, serial];
+  emit('updateUsbPolicy', { allowedDevices: allowed, autoInstall: usbAutoInstall.value });
+};
+
+const toggleUsbAutoInstall = () => {
+  emit('updateUsbPolicy', { allowedDevices: usbAllowedDevices.value, autoInstall: !usbAutoInstall.value });
+};
 
 const updateStatusText = computed(() => {
   switch (updaterStore.state) {
@@ -437,6 +477,66 @@ const onSettingsScroll = (e: Event) => {
                     <span v-if="usbBridgeView.detail" class="text-[10px] leading-relaxed text-slate-500 break-words">
                       {{ usbBridgeView.detail }}
                     </span>
+                  </div>
+                </div>
+
+                <div
+                  v-if="usbBridgeView"
+                  class="flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2"
+                  data-testid="usb-devices"
+                >
+                  <span class="cyber-input-label">USB Phones</span>
+                  <p class="text-[10px] leading-relaxed text-slate-500">
+                    Only allowed phones get <span class="font-mono">adb reverse</span> and the app launched.
+                    Any other phone plugged in (e.g. to charge) is left alone.
+                  </p>
+                  <p v-if="usbDeviceRows.length === 0" class="text-[10px] text-slate-500">
+                    No phone on USB. Plug one in with USB debugging enabled.
+                  </p>
+                  <div
+                    v-for="row in usbDeviceRows"
+                    :key="row.serial"
+                    class="flex items-center justify-between gap-3"
+                  >
+                    <div class="flex flex-col min-w-0">
+                      <span class="font-mono text-[11px] text-slate-200 truncate">{{ row.serial }}</span>
+                      <span class="text-[9px] uppercase tracking-wider text-slate-500">{{ row.status }}</span>
+                    </div>
+                    <button
+                      type="button"
+                      class="cyber-action-btn h-[30px] min-w-[84px] font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1 disabled:opacity-50"
+                      :class="
+                        row.allowed
+                          ? 'border-slate-750 text-slate-400 hover:border-rose-500/60 hover:text-rose-300'
+                          : 'border-cyan-400/70 text-cyan-300 bg-slate-900/80'
+                      "
+                      :disabled="usbPolicySaving"
+                      @click="toggleUsbDevice(row.serial)"
+                    >
+                      {{ row.allowed ? 'Remove' : 'Allow' }}
+                    </button>
+                  </div>
+
+                  <div class="flex items-center justify-between gap-3 pt-2 cyber-divider">
+                    <div class="flex flex-col gap-0.5">
+                      <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300">Auto-install app</span>
+                      <span class="text-[10px] leading-relaxed text-slate-500">
+                        Install the client APK on allowed phones that don't have it yet.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      class="cyber-action-btn h-[30px] min-w-[64px] font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1 disabled:opacity-50"
+                      :class="
+                        usbAutoInstall
+                          ? 'border-cyan-400/70 text-cyan-300 bg-slate-900/80'
+                          : 'border-slate-750 text-slate-400 hover:border-slate-600'
+                      "
+                      :disabled="usbPolicySaving"
+                      @click="toggleUsbAutoInstall"
+                    >
+                      {{ usbAutoInstall ? 'On' : 'Off' }}
+                    </button>
                   </div>
                 </div>
 

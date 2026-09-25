@@ -9,9 +9,11 @@
 //! 2. `adb start-server`,
 //! 3. stream `adb track-devices` — the adb server pushes a fresh device list
 //!    on every USB attach/detach/authorise event,
-//! 4. for every USB device that reaches state `device`, run `adb reverse`,
-//!    install the client APK if the phone does not have it yet (when an APK
-//!    is available, see [`locate_apk`]), and bring the app to the foreground.
+//! 4. for every USB device that reaches state `device` **and is on the
+//!    user's allowlist** (`usbAllowedDevices`), run `adb reverse`, install the
+//!    client APK if the phone lacks it and `usbAutoInstall` is on (see
+//!    [`locate_apk`]), and bring the app to the foreground. Phones not on the
+//!    list are only reported, so the Dashboard can offer to allow them.
 //!
 //! The phone side already auto-reconnects every few seconds, so once the
 //! forward is (re)established the grid comes back on its own. If the adb
@@ -28,6 +30,7 @@ use std::time::Duration;
 use tauri::{Emitter, Manager};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
+use tokio::sync::Notify;
 
 pub const USB_BRIDGE_STATUS_EVENT: &str = "usb-bridge-status";
 
@@ -50,6 +53,8 @@ pub struct UsbDevice {
     /// Raw adb transport state: `device`, `unauthorized`, `offline`, ...
     pub state: String,
     pub reversed: bool,
+    /// On the user's allowlist. Unlisted phones are left alone.
+    pub allowed: bool,
 }
 
 #[derive(Serialize, Clone, Debug, Default, PartialEq, Eq)]
@@ -57,10 +62,43 @@ pub struct UsbDevice {
 pub struct UsbBridgeStatus {
     pub enabled: bool,
     pub adb_path: Option<String>,
-    /// `disabled` | `adb-missing` | `waiting` | `installing` | `linked` | `unauthorized` | `error`
+    /// `disabled` | `adb-missing` | `waiting` | `pending` | `installing` | `linked` | `unauthorized` | `error`
     pub state: String,
     pub devices: Vec<UsbDevice>,
     pub message: Option<String>,
+}
+
+/// What the user allowed the bridge to do. Changed live from the Dashboard
+/// via [`set_policy`]; the bridge re-evaluates connected phones on change.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct UsbPolicy {
+    pub allowed_devices: Vec<String>,
+    pub auto_install: bool,
+}
+
+impl UsbPolicy {
+    pub fn from_config(config: &crate::ServerConfig) -> Self {
+        Self {
+            allowed_devices: normalize_serials(config.usb_allowed_devices.clone()),
+            auto_install: config.usb_auto_install,
+        }
+    }
+
+    pub fn allows(&self, serial: &str) -> bool {
+        self.allowed_devices.iter().any(|s| s == serial)
+    }
+}
+
+/// Trim, drop empties and duplicates, keep the user's order.
+pub fn normalize_serials(serials: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for serial in serials {
+        let serial = serial.trim().to_string();
+        if !serial.is_empty() && !out.contains(&serial) {
+            out.push(serial);
+        }
+    }
+    out
 }
 
 lazy_static::lazy_static! {
@@ -68,6 +106,19 @@ lazy_static::lazy_static! {
         state: "disabled".to_string(),
         ..UsbBridgeStatus::default()
     });
+    static ref USB_POLICY: Mutex<UsbPolicy> = Mutex::new(UsbPolicy::default());
+    static ref USB_POLICY_CHANGED: Notify = Notify::new();
+}
+
+pub fn set_policy(policy: UsbPolicy) {
+    if let Ok(mut guard) = USB_POLICY.lock() {
+        *guard = policy;
+    }
+    USB_POLICY_CHANGED.notify_one();
+}
+
+fn current_policy() -> UsbPolicy {
+    USB_POLICY.lock().map(|p| p.clone()).unwrap_or_default()
 }
 
 pub fn current_usb_bridge_status() -> UsbBridgeStatus {
@@ -303,6 +354,13 @@ async fn install_apk(adb: &Path, serial: &str, apk: &Path) -> Result<(), String>
     adb_run(adb, &["-s", serial, "install", "-r", &apk_str]).await.map(|_| ())
 }
 
+async fn remove_reverse(adb: &Path, serial: &str, port: u16) -> Result<(), String> {
+    let spec = format!("tcp:{}", port);
+    adb_run(adb, &["-s", serial, "reverse", "--remove", spec.as_str()])
+        .await
+        .map(|_| ())
+}
+
 async fn launch_app(adb: &Path, serial: &str) -> Result<(), String> {
     // Phone may be dark on the desk; wake it so the launch is visible. The
     // activity itself also sets turnScreenOn/showWhenLocked, this is belt
@@ -322,6 +380,7 @@ async fn ensure_app(
     adb: &Path,
     serial: &str,
     apk: Option<&Path>,
+    auto_install: bool,
     devices_snapshot: &[UsbDevice],
     app: &tauri::AppHandle,
 ) -> Option<String> {
@@ -331,6 +390,12 @@ async fn ensure_app(
     };
 
     if !installed {
+        if !auto_install {
+            return Some(format!(
+                "{} is not installed on {}. Install it, or turn on Auto-install in Settings → Network.",
+                APP_PACKAGE, serial
+            ));
+        }
         let Some(apk) = apk else {
             return Some(format!(
                 "{} is not installed on {} and no APK was found to install (set apkPath in server.json or place {} next to the Companion).",
@@ -371,17 +436,36 @@ async fn handle_device_list(
     reversed: &mut HashSet<String>,
     app: &tauri::AppHandle,
 ) {
+    let policy = current_policy();
     let listed: Vec<(String, String)> = parse_device_list(frame)
         .into_iter()
         .filter(|(serial, _)| is_usb_serial(serial))
         .collect();
 
-    // Forget devices that went away or dropped out of `device` state so a
-    // replug re-runs `adb reverse` (the forward dies with the transport).
+    // A phone the user just removed from the allowlist: drop its forward so
+    // it stops reaching the Companion right away, not only after a replug.
+    let revoked: Vec<String> = reversed
+        .iter()
+        .filter(|serial| !policy.allows(serial))
+        .cloned()
+        .collect();
+    for serial in &revoked {
+        if listed.iter().any(|(s, state)| s == serial && state == "device") {
+            match remove_reverse(adb, serial, ws_port).await {
+                Ok(()) => println!("USB bridge: removed adb reverse for {}", serial),
+                Err(e) => eprintln!("USB bridge: adb reverse --remove failed for {}: {}", serial, e),
+            }
+        }
+    }
+
+    // Forget devices that went away, dropped out of `device` state or were
+    // un-allowed, so a replug / re-allow re-runs `adb reverse` (the forward
+    // dies with the transport).
     reversed.retain(|serial| {
-        listed
-            .iter()
-            .any(|(s, state)| s == serial && state == "device")
+        policy.allows(serial)
+            && listed
+                .iter()
+                .any(|(s, state)| s == serial && state == "device")
     });
 
     let snapshot = |reversed: &HashSet<String>| -> Vec<UsbDevice> {
@@ -391,13 +475,14 @@ async fn handle_device_list(
                 serial: serial.clone(),
                 state: state.clone(),
                 reversed: reversed.contains(serial),
+                allowed: policy.allows(serial),
             })
             .collect()
     };
 
     let mut message: Option<String> = None;
     for (serial, state) in &listed {
-        if state != "device" || reversed.contains(serial) {
+        if state != "device" || reversed.contains(serial) || !policy.allows(serial) {
             continue;
         }
         let mut result = reverse_port(adb, serial, ws_port).await;
@@ -411,7 +496,9 @@ async fn handle_device_list(
                 println!("USB bridge: adb reverse tcp:{} established for {}", ws_port, serial);
                 reversed.insert(serial.clone());
                 // Forward is up: get the app onto the phone and onto the screen.
-                if let Some(m) = ensure_app(adb, serial, apk, &snapshot(reversed), app).await {
+                if let Some(m) =
+                    ensure_app(adb, serial, apk, policy.auto_install, &snapshot(reversed), app).await
+                {
                     eprintln!("USB bridge: {}", m);
                     message = Some(m);
                 }
@@ -424,21 +511,38 @@ async fn handle_device_list(
     }
 
     let devices = snapshot(reversed);
-
-    let state = if devices.iter().any(|d| d.reversed) {
-        "linked"
-    } else if devices.iter().any(|d| d.state == "unauthorized") {
-        message.get_or_insert_with(|| {
-            "Phone is asking to allow USB debugging — accept the prompt on the phone.".to_string()
-        });
-        "unauthorized"
-    } else if message.is_some() {
-        "error"
-    } else {
-        "waiting"
-    };
+    let state = summarize_state(&devices, message.is_some());
+    match state {
+        "unauthorized" => {
+            message.get_or_insert_with(|| {
+                "Phone is asking to allow USB debugging — accept the prompt on the phone.".to_string()
+            });
+        }
+        "pending" => {
+            message.get_or_insert_with(|| {
+                "A phone is connected but not allowed yet. Allow it below to use it as a deck.".to_string()
+            });
+        }
+        _ => {}
+    }
 
     publish(app, status(Some(adb), state, devices, message));
+}
+
+/// Overall bridge state for the status line. `pending` = a phone is ready on
+/// USB but not on the allowlist, so the bridge is leaving it alone.
+pub fn summarize_state(devices: &[UsbDevice], has_error: bool) -> &'static str {
+    if devices.iter().any(|d| d.reversed) {
+        "linked"
+    } else if devices.iter().any(|d| d.state == "unauthorized") {
+        "unauthorized"
+    } else if has_error {
+        "error"
+    } else if devices.iter().any(|d| d.state == "device" && !d.allowed) {
+        "pending"
+    } else {
+        "waiting"
+    }
 }
 
 /// Runs forever. Spawn once at startup when `loopback_only` is on.
@@ -446,8 +550,10 @@ pub async fn run_usb_bridge(
     adb_path: Option<String>,
     apk_path: Option<String>,
     ws_port: u16,
+    policy: UsbPolicy,
     app: tauri::AppHandle,
 ) {
+    set_policy(policy);
     let apk = locate_apk(apk_path.as_deref(), &app);
     match &apk {
         Some(p) => println!("USB bridge: auto-install APK {}", p.display()),
@@ -515,15 +621,28 @@ pub async fn run_usb_bridge(
         let mut buf: Vec<u8> = Vec::new();
         let mut chunk = [0u8; 4096];
         let mut reversed: HashSet<String> = HashSet::new();
+        // Last device list adb sent; replayed when the policy changes so an
+        // "Allow" click links an already-plugged phone without a replug.
+        let mut last_frame: Option<String> = None;
 
         loop {
-            let n = match stdout.read(&mut chunk).await {
-                Ok(0) | Err(_) => break,
-                Ok(n) => n,
-            };
-            buf.extend_from_slice(&chunk[..n]);
-            while let Some(frame) = take_frame(&mut buf) {
-                handle_device_list(&adb, apk.as_deref(), ws_port, &frame, &mut reversed, &app).await;
+            tokio::select! {
+                read = stdout.read(&mut chunk) => {
+                    let n = match read {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => n,
+                    };
+                    buf.extend_from_slice(&chunk[..n]);
+                    while let Some(frame) = take_frame(&mut buf) {
+                        handle_device_list(&adb, apk.as_deref(), ws_port, &frame, &mut reversed, &app).await;
+                        last_frame = Some(frame);
+                    }
+                }
+                _ = USB_POLICY_CHANGED.notified() => {
+                    if let Some(frame) = &last_frame {
+                        handle_device_list(&adb, apk.as_deref(), ws_port, frame, &mut reversed, &app).await;
+                    }
+                }
             }
         }
 
@@ -614,6 +733,7 @@ mod tests {
                 serial: "R58M".to_string(),
                 state: "device".to_string(),
                 reversed: true,
+                allowed: true,
             }],
             None,
         );
@@ -621,5 +741,53 @@ mod tests {
         assert_eq!(json["adbPath"], "/usr/bin/adb");
         assert_eq!(json["state"], "linked");
         assert_eq!(json["devices"][0]["reversed"], true);
+        assert_eq!(json["devices"][0]["allowed"], true);
+    }
+
+    fn device(serial: &str, state: &str, reversed: bool, allowed: bool) -> UsbDevice {
+        UsbDevice {
+            serial: serial.to_string(),
+            state: state.to_string(),
+            reversed,
+            allowed,
+        }
+    }
+
+    #[test]
+    fn policy_allows_only_listed_serials() {
+        let policy = UsbPolicy {
+            allowed_devices: vec!["R58M12345".to_string()],
+            auto_install: false,
+        };
+        assert!(policy.allows("R58M12345"));
+        assert!(!policy.allows("PERSONAL999"));
+        assert!(!UsbPolicy::default().allows("R58M12345"), "empty allowlist allows nothing");
+    }
+
+    #[test]
+    fn normalize_serials_trims_and_dedupes_in_order() {
+        let got = normalize_serials(vec![
+            " B ".to_string(),
+            "A".to_string(),
+            "".to_string(),
+            "B".to_string(),
+        ]);
+        assert_eq!(got, vec!["B".to_string(), "A".to_string()]);
+    }
+
+    #[test]
+    fn summarize_state_reports_unallowed_phone_as_pending() {
+        assert_eq!(summarize_state(&[], false), "waiting");
+        assert_eq!(summarize_state(&[device("P", "device", false, false)], false), "pending");
+        assert_eq!(
+            summarize_state(
+                &[device("P", "device", false, false), device("D", "device", true, true)],
+                false
+            ),
+            "linked",
+            "a linked deck wins over a pending phone"
+        );
+        assert_eq!(summarize_state(&[device("U", "unauthorized", false, true)], false), "unauthorized");
+        assert_eq!(summarize_state(&[device("D", "device", false, true)], true), "error");
     }
 }
