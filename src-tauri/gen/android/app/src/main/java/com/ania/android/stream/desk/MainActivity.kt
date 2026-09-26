@@ -51,6 +51,12 @@ class MainActivity : TauriActivity() {
   // ActivityInfo.SCREEN_ORIENTATION_* constant matching ANDROID_ORIENTATION in
   // ClientView.vue (-1 unspecified, 0 landscape, 1 portrait, 8 reverse-landscape).
   override fun onWebViewCreate(webView: WebView) {
+    // Debug builds only: exposes the WebView to `chrome://inspect` /
+    // `adb forward ... webview_devtools_remote_<pid>` so the client's JS can
+    // be inspected on a real device. Never enabled for a release build.
+    if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0) {
+      WebView.setWebContentsDebuggingEnabled(true)
+    }
     webView.addJavascriptInterface(OrientationBridge(), "AndroidOrientation")
     webView.addJavascriptInterface(WifiLockBridge(), "AndroidWifiLock")
   }
