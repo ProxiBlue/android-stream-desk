@@ -32,16 +32,18 @@ assert.equal(
 assert.equal(
   buildApkEndpointPayload({
     serverIp: '192.168.1.20',
+    pairingToken: 'tok_123-abc',
     runningWsPort: 18089,
     hasPendingServerChanges: false,
     hasBindError: false,
   }),
-  'android-stream-desk://connect?v=1&host=192.168.1.20&wsPort=18089',
+  'android-stream-desk://connect?v=1&host=192.168.1.20&wsPort=18089&token=tok_123-abc',
 );
 
 assert.equal(
   buildApkEndpointPayload({
     serverIp: '192.168.1.20',
+    pairingToken: 'tok_123-abc',
     runningWsPort: 8089,
     hasPendingServerChanges: true,
     hasBindError: false,
@@ -52,21 +54,48 @@ assert.equal(
 assert.equal(
   buildWebClientUrl({
     serverIp: '192.168.1.20',
+    pairingToken: 'tok_123-abc',
     webEnabled: true,
     webPort: 8090,
     webReady: true,
     hasPendingServerChanges: false,
     hasBindError: false,
   }),
-  'http://192.168.1.20:8090',
+  'http://192.168.1.20:8090/#token=tok_123-abc',
 );
 
 assert.equal(
   buildWebClientUrl({
     serverIp: '192.168.1.20',
+    pairingToken: 'tok_123-abc',
     webEnabled: true,
     webPort: 8090,
     webReady: false,
+    hasPendingServerChanges: false,
+    hasBindError: false,
+  }),
+  '',
+);
+
+// No token loaded yet → no QR / link at all rather than a token-less one.
+assert.equal(
+  buildApkEndpointPayload({
+    serverIp: '192.168.1.20',
+    pairingToken: '',
+    runningWsPort: 18089,
+    hasPendingServerChanges: false,
+    hasBindError: false,
+  }),
+  '',
+);
+
+assert.equal(
+  buildWebClientUrl({
+    serverIp: '192.168.1.20',
+    pairingToken: '',
+    webEnabled: true,
+    webPort: 8090,
+    webReady: true,
     hasPendingServerChanges: false,
     hasBindError: false,
   }),

@@ -24,10 +24,15 @@ globalThis.CustomEvent = class CustomEvent {
 
 // Fake WebSocket: `behaviour` decides what each new socket does, and every
 // instance records what was written to it.
-let behaviour = 'silent'; // 'open' | 'error' | 'silent'
+let behaviour = 'silent'; // 'open' | 'error' | 'silent' | 'auth_failed' | 'close4401'
 const created = [];
 globalThis.WebSocket = class FakeWebSocket {
   static OPEN = 1;
+  // Like the real WebSocket, Vue must not wrap this in a reactive proxy —
+  // otherwise `socket.value === ws` identity checks never match.
+  get [Symbol.toStringTag]() {
+    return 'WebSocket';
+  }
   constructor(url) {
     this.url = url;
     this.readyState = 0;
@@ -41,6 +46,15 @@ globalThis.WebSocket = class FakeWebSocket {
       } else if (behaviour === 'error') {
         this.onerror?.();
         this.onclose?.();
+      } else if (behaviour === 'auth_failed') {
+        this.readyState = FakeWebSocket.OPEN;
+        this.onopen?.();
+        this.onmessage?.({ data: JSON.stringify({ type: 'auth_failed' }) });
+        this.onclose?.({ code: 4401 });
+      } else if (behaviour === 'close4401') {
+        this.readyState = FakeWebSocket.OPEN;
+        this.onopen?.();
+        this.onclose?.({ code: 4401 });
       }
     });
   }
@@ -130,6 +144,69 @@ store.revive();
 assert.equal(healthy.closed, false, 'healthy socket is not torn down by revive()');
 assert.equal(created.length, countBeforeRevive, 'healthy socket: no new socket opened');
 assert.ok(types(healthy).includes('ping'), 'revive() probes the socket with a ping');
+store.disconnect();
+
+// ------------------------------------------------- pairing token (S-SEC2)
+storage.delete('server_token');
+store = freshStore();
+behaviour = 'open';
+created.length = 0;
+store.connect();
+await tick();
+assert.equal(created.at(-1).url, 'ws://127.0.0.1:8089', 'no token stored → plain URL');
+store.disconnect();
+
+storage.set('server_token', 'tok-A_1');
+store = freshStore();
+created.length = 0;
+store.connect();
+await tick();
+assert.equal(
+  created.at(-1).url,
+  'ws://127.0.0.1:8089/?token=tok-A_1',
+  'token from server_token is sent in the query string',
+);
+store.disconnect();
+
+for (const rejection of ['auth_failed', 'close4401']) {
+  store = freshStore();
+  behaviour = rejection;
+  created.length = 0;
+  store.connect();
+  await tick();
+  assert.equal(store.pairingRequired, true, `${rejection} → pairing required`);
+  assert.equal(store.status, 'error', `${rejection} → error status`);
+  assert.equal(store.isReconnecting, false, `${rejection} → auto-reconnect stopped`);
+  assert.equal(store.hasConnectedOnce, false, `${rejection} → back to the connect screen`);
+  const countAfterReject = created.length;
+  store.revive();
+  assert.equal(created.length, countAfterReject, `${rejection} → revive() does not redial`);
+
+  behaviour = 'open';
+  store.applyScannedEndpoint('192.168.1.30', '8089', 'tok-B_2');
+  assert.equal(store.pairingRequired, false, 'scanning a new QR resets pairing-required');
+  assert.equal(storage.get('server_token'), 'tok-B_2', 'scanned token is persisted');
+  store.connect();
+  await tick();
+  assert.equal(created.at(-1).url, 'ws://192.168.1.30:8089/?token=tok-B_2');
+  assert.equal(store.status, 'connected');
+  store.disconnect();
+}
+
+// A superseded socket closing with 4401 must not flip the new socket's state.
+store = freshStore();
+behaviour = 'silent';
+created.length = 0;
+store.connect();
+await tick();
+const superseded = created.at(-1);
+const supersededOnClose = superseded.onclose;
+behaviour = 'open';
+store.connect();
+await tick();
+supersededOnClose?.({ code: 4401 });
+assert.equal(store.pairingRequired, false, 'stale 4401 close is ignored');
+assert.equal(store.status, 'connected', 'stale 4401 close keeps the live socket');
 store.disconnect();
 
 console.log('✅ connection store tests passed');

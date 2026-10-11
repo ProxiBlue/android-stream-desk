@@ -126,3 +126,9 @@ development_status:
   s-apk1-abi-split-build: review
   s-apk2-web-asset-diet: review  # logo done (-14MB → arm64 21MB/arm 20MB); icon 11MB deferred → deferred-work.md
   epic-13-retrospective: optional
+
+  # Epic 14 — WS security: tiền đề để land PR #7 (USB mode)
+  epic-14: in-progress
+  s-sec1-press-by-button-id: ready-for-dev
+  s-sec2-ws-pairing-token-origin: ready-for-dev
+  epic-14-retrospective: optional

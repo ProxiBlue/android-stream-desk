@@ -8,11 +8,12 @@ use std::path::Path;
 use std::sync::Mutex;
 #[cfg(desktop)]
 use tauri::Emitter;
-use tauri::{AppHandle, Listener, Manager};
+use tauri::{AppHandle, Manager};
 
 pub mod accessibility;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod metrics;
+pub mod pairing;
 pub mod webserver;
 pub mod websocket;
 
@@ -217,6 +218,31 @@ async fn save_server_config(app_handle: AppHandle, config: ServerConfig) -> Resu
         .map_err(|e| format!("Failed to resolve AppConfig: {}", e))?;
 
     save_server_config_to_dir(&app_dir, &config).await
+}
+
+fn app_config_dir_for(app_handle: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app_handle
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Failed to resolve AppConfig: {}", e))
+}
+
+/// Dashboard-only: the token goes into the pairing QR and the copied link.
+#[tauri::command]
+async fn get_pairing_token(app_handle: AppHandle) -> Result<String, String> {
+    if let Some(token) = pairing::current_token() {
+        return Ok(token);
+    }
+    pairing::load_or_create(&app_config_dir_for(&app_handle)?)
+}
+
+/// New token, persisted, and every open WS connection is dropped so all
+/// devices have to scan the new QR.
+#[tauri::command]
+async fn rotate_pairing_token(app_handle: AppHandle) -> Result<String, String> {
+    let token = pairing::rotate(&app_config_dir_for(&app_handle)?)?;
+    websocket::disconnect_all_clients();
+    Ok(token)
 }
 
 #[tauri::command]
@@ -709,6 +735,38 @@ fn resolve_shortcut(lnk_path: String) -> Result<String, String> {
     {
         let _ = lnk_path;
         Err("resolve_shortcut only supported on Windows".to_string())
+    }
+}
+
+/// Tra button theo id trong layout đã lưu: `pages[].buttons` trước (nguồn
+/// hiện hành), rồi `buttons` (trường legacy, frontend ghi đồng bộ với
+/// `pages[0]`). Phần tử không deserialize được thành `ButtonConfig` bị bỏ qua.
+pub(crate) fn find_button(layout: &Value, id: &str) -> Option<ButtonConfig> {
+    let page_buttons = layout
+        .get("pages")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|page| page.get("buttons").and_then(Value::as_array))
+        .flatten();
+    let legacy_buttons = layout
+        .get("buttons")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten();
+    page_buttons
+        .chain(legacy_buttons)
+        .filter(|b| b.get("id").and_then(Value::as_str) == Some(id))
+        .find_map(|b| serde_json::from_value::<ButtonConfig>(b.clone()).ok())
+}
+
+/// Thực thi button đã tra được từ layout; log giữ format `macro ok:` / `macro FAILED:`.
+pub(crate) async fn run_resolved_button(app_handle: AppHandle, button: ButtonConfig) {
+    let label = button.label.clone();
+    let action = button.action_type.clone();
+    match execute_logic(app_handle, button).await {
+        Ok(()) => println!("macro ok: {} ({})", label, action),
+        Err(e) => eprintln!("macro FAILED: {} ({}): {}", label, action, e),
     }
 }
 
@@ -1289,6 +1347,8 @@ pub fn run() {
             export_layout_to_path,
             execute_button_action,
             get_server_info,
+            get_pairing_token,
+            rotate_pairing_token,
             set_android_orientation,
             open_accessibility_settings,
             probe_input_permission,
@@ -1301,7 +1361,6 @@ pub fn run() {
         .setup(|app| {
             #[cfg(desktop)]
             let app_handle_ws = app.handle().clone();
-            let app_handle_listener = app.handle().clone();
 
             #[cfg(desktop)]
             {
@@ -1339,7 +1398,23 @@ pub fn run() {
                         webserver::start_web_server(web_config, app_handle_web);
                     });
                 }
-                websocket::start_ws_server(server_config.ws_port, app_handle_ws).await;
+                // The WS server must never run without a token: fall back to an
+                // in-memory one when pairing.json cannot be read or written.
+                let pairing_result = app_config_dir_for(&app_handle_ws)
+                    .and_then(|dir| pairing::load_or_create(&dir));
+                if let Err(e) = pairing_result {
+                    eprintln!("Failed to persist pairing token, using a temporary one: {}", e);
+                    if let Err(e) = pairing::install_ephemeral() {
+                        eprintln!("Failed to create pairing token, WS server not started: {}", e);
+                        return;
+                    }
+                }
+                websocket::start_ws_server(
+                    server_config.ws_port,
+                    server_config.web_port,
+                    app_handle_ws,
+                )
+                .await;
             });
 
             // Spawn metrics broadcast loop (desktop only)
@@ -1353,30 +1428,6 @@ pub fn run() {
                     metrics::metrics_loop(config_dir).await;
                 });
             }
-
-            // Proxy listen event triggered from WS client loop
-            app.listen("trigger-macro", move |event| {
-                match serde_json::from_str::<ButtonConfig>(event.payload()) {
-                    Ok(button) => {
-                        let handle = app_handle_listener.clone();
-                        tauri::async_runtime::spawn(async move {
-                            let label = button.label.clone();
-                            let action = button.action_type.clone();
-                            match execute_logic(handle, button).await {
-                                Ok(()) => println!("macro ok: {} ({})", label, action),
-                                Err(e) => eprintln!("macro FAILED: {} ({}): {}", label, action, e),
-                            }
-                        });
-                    }
-                    // Previously an `if let Ok(..)` with no else: a payload that
-                    // failed to deserialise vanished with no log and no toast.
-                    Err(e) => eprintln!(
-                        "trigger-macro payload could not be parsed as ButtonConfig: {} -- payload was {}",
-                        e,
-                        event.payload()
-                    ),
-                }
-            });
 
             Ok(())
         })
@@ -1450,6 +1501,77 @@ mod tests {
             .unwrap()
             .as_nanos();
         std::env::temp_dir().join(format!("android-stream-desk-{}-{}", test_name, nonce))
+    }
+
+    fn stored_button(id: &str, command: &str) -> Value {
+        serde_json::json!({
+            "id": id,
+            "label": format!("Label {}", id),
+            "backgroundColor": "#000000",
+            "actionType": "command",
+            "commandValue": command,
+        })
+    }
+
+    #[test]
+    fn find_button_resolves_id_in_legacy_buttons() {
+        let layout = serde_json::json!({
+            "rows": 1, "cols": 2,
+            "buttons": [stored_button("a", "echo a"), stored_button("b", "echo b")],
+        });
+        let found = find_button(&layout, "b").expect("id b có trong buttons");
+        assert_eq!(found.id, "b");
+        assert_eq!(found.command_value.as_deref(), Some("echo b"));
+    }
+
+    #[test]
+    fn find_button_resolves_id_in_second_page_and_prefers_pages() {
+        let layout = serde_json::json!({
+            "rows": 1, "cols": 1,
+            "buttons": [stored_button("dup", "legacy")],
+            "pages": [
+                { "id": "page_1", "buttons": [stored_button("p1", "echo p1")] },
+                { "id": "page_2", "buttons": [stored_button("p2", "echo p2"), stored_button("dup", "from pages")] },
+            ],
+        });
+        let found = find_button(&layout, "p2").expect("id p2 có trong pages[1]");
+        assert_eq!(found.command_value.as_deref(), Some("echo p2"));
+        let dup = find_button(&layout, "dup").expect("id dup có ở cả hai nơi");
+        assert_eq!(dup.command_value.as_deref(), Some("from pages"));
+    }
+
+    #[test]
+    fn find_button_returns_none_for_unknown_id() {
+        let layout = serde_json::json!({
+            "rows": 1, "cols": 1,
+            "buttons": [stored_button("a", "echo a")],
+            "pages": [{ "id": "page_1", "buttons": [stored_button("a", "echo a")] }],
+        });
+        assert!(find_button(&layout, "missing").is_none());
+        assert!(find_button(&serde_json::json!({}), "a").is_none());
+    }
+
+    #[test]
+    fn find_button_skips_malformed_entries() {
+        let layout = serde_json::json!({
+            "rows": 1, "cols": 1,
+            "pages": [{ "id": "page_1", "buttons": [
+                42,
+                { "id": "x", "label": "thiếu actionType" },
+            ] }],
+            "buttons": [stored_button("x", "echo x")],
+        });
+        let found = find_button(&layout, "x").expect("bản hợp lệ trong buttons được dùng");
+        assert_eq!(found.command_value.as_deref(), Some("echo x"));
+    }
+
+    #[test]
+    fn find_button_works_without_pages_on_default_layout() {
+        let layout = websocket::default_layout_for_tests();
+        assert!(layout.get("pages").is_none());
+        let found = find_button(&layout, "btn_0").expect("default_layout có btn_0");
+        assert_eq!(found.action_type, "shortcut");
+        assert_eq!(found.shortcut_value.as_deref(), Some("Ctrl+Tab"));
     }
 
     #[test]

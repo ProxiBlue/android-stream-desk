@@ -264,6 +264,11 @@ const wsBindError = ref<ListenerBindError | null>(null);
 const webReady = ref(false);
 const webBindError = ref<ListenerBindError | null>(null);
 const serverIp = ref<string>('—');
+// Pairing token (S-SEC2). Only ever rendered inside the QR codes and the
+// copied links — never as plain text (see maskPairingToken).
+const pairingToken = ref('');
+const pairingRotating = ref(false);
+const pairingError = ref('');
 const serverPort = ref<number>(8089);
 const appVersion = ref<string>('1.6.1');
 let tauriUnlisteners: (() => void)[] = [];
@@ -483,6 +488,7 @@ const webClientUrl = computed(() => {
   const config = savedServerConfig.value;
   return buildWebClientUrl({
     serverIp: serverIp.value,
+    pairingToken: pairingToken.value,
     webEnabled: Boolean(config?.webEnabled),
     webPort: config?.webPort ?? 8090,
     webReady: webReady.value,
@@ -498,6 +504,7 @@ const webClientQrSvg = computed(() =>
 const apkConnectPayload = computed(() => {
   return buildApkEndpointPayload({
     serverIp: serverIp.value,
+    pairingToken: pairingToken.value,
     runningWsPort: runningWsPort.value,
     hasPendingServerChanges: hasPendingServerChanges.value,
     hasBindError: hasListenerBindError.value,
@@ -792,6 +799,20 @@ const copyAddress = async () => {
   }
 };
 
+const rotatePairingToken = async () => {
+  if (pairingRotating.value) return;
+  pairingRotating.value = true;
+  pairingError.value = '';
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    pairingToken.value = await invoke<string>('rotate_pairing_token');
+  } catch (e) {
+    pairingError.value = String(e);
+  } finally {
+    pairingRotating.value = false;
+  }
+};
+
 const copyWebClientUrl = async () => {
   if (!webClientUrl.value) return;
   try {
@@ -1004,6 +1025,11 @@ onMounted(async () => {
       wsBindError.value = info.wsBindError;
       webReady.value = info.webReady;
       webBindError.value = info.webBindError;
+      try {
+        pairingToken.value = await invoke<string>('get_pairing_token');
+      } catch (e) {
+        console.error('Failed to load pairing token:', e);
+      }
       await loadServerConfig(invoke);
 
       await probePermission();
@@ -1159,6 +1185,8 @@ onUnmounted(() => {
       :web-ready="webReady"
       :web-client-url="webClientUrl"
       :web-client-qr-svg="webClientQrSvg"
+      :pairing-rotating="pairingRotating"
+      :pairing-error="pairingError"
       :saved-server-config="savedServerConfig"
       :active-theme="activeTheme"
       :autostart-on="autostartOn"
@@ -1177,6 +1205,7 @@ onUnmounted(() => {
       @toggle-autostart="toggleAutostart"
       @save-network-settings-and-relaunch="saveNetworkSettingsAndRelaunch"
       @copy-web-client-url="copyWebClientUrl"
+      @rotate-pairing-token="rotatePairingToken"
       @open-zoom-modal="openZoomModal"
       @open-image-zoom="openImageZoom"
       @open-accessibility-settings="openAccessibilitySettings"

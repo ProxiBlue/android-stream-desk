@@ -5,14 +5,13 @@ export interface ScanAgainCtaInput {
   status: ConnectionState;
   reconnectAttempts: number;
   maxReconnectAttempts: number;
+  pairingRequired?: boolean;
 }
 
 export function shouldShowScanAgainCta(input: ScanAgainCtaInput): boolean {
-  return (
-    input.isAndroidTauriApp &&
-    input.status === 'error' &&
-    input.reconnectAttempts >= input.maxReconnectAttempts
-  );
+  if (!input.isAndroidTauriApp) return false;
+  if (input.pairingRequired) return true;
+  return input.status === 'error' && input.reconnectAttempts >= input.maxReconnectAttempts;
 }
 
 export function formatReconnectEndpoint(ipAddress: string, port: string): string {

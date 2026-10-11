@@ -13,6 +13,7 @@ export interface PendingServerChangeInput {
 
 export interface ApkEndpointInput {
   serverIp: string;
+  pairingToken: string;
   runningWsPort: number | null;
   hasPendingServerChanges: boolean;
   hasBindError: boolean;
@@ -20,6 +21,7 @@ export interface ApkEndpointInput {
 
 export interface WebEndpointInput {
   serverIp: string;
+  pairingToken: string;
   webEnabled: boolean;
   webPort: number;
   webReady: boolean;
@@ -52,12 +54,13 @@ export function buildApkEndpointPayload(input: ApkEndpointInput): string {
     input.serverIp === UNKNOWN_IP ||
     input.runningWsPort === null ||
     input.hasPendingServerChanges ||
-    input.hasBindError
+    input.hasBindError ||
+    !input.pairingToken
   ) {
     return '';
   }
 
-  return buildApkConnectPayload(input.serverIp, input.runningWsPort);
+  return buildApkConnectPayload(input.serverIp, input.runningWsPort, input.pairingToken);
 }
 
 export function buildWebClientUrl(input: WebEndpointInput): string {
@@ -66,10 +69,12 @@ export function buildWebClientUrl(input: WebEndpointInput): string {
     !input.webReady ||
     input.serverIp === UNKNOWN_IP ||
     input.hasPendingServerChanges ||
-    input.hasBindError
+    input.hasBindError ||
+    !input.pairingToken
   ) {
     return '';
   }
 
-  return `http://${input.serverIp}:${input.webPort}`;
+  // Fragment, not query: it never reaches the HTTP request line or Referer.
+  return `http://${input.serverIp}:${input.webPort}/#token=${encodeURIComponent(input.pairingToken)}`;
 }

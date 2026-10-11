@@ -7,6 +7,7 @@ import { Icon, listIcons } from '@iconify/vue';
 import { normalizeHex } from '../../lib/color';
 import { mdiIcons, lucideIcons, materialIcons, siIcons } from '../../config/icons';
 import Input from '../ui/Input.vue';
+import { maskPairingToken } from '../../lib/pairingToken';
 
 interface LinkUrlValidation {
   ok: boolean;
@@ -1152,7 +1153,7 @@ const copyWebClientUrl = async () => {
               >{{ t('connection.payloadLabel') }}</span
             >
             <span class="font-mono break-all line-clamp-2 select-text selection:bg-cyan-550/30">{{
-              apkConnectPayload || '—'
+              apkConnectPayload ? maskPairingToken(apkConnectPayload) : '—'
             }}</span>
           </div>
         </div>
@@ -1231,7 +1232,7 @@ const copyWebClientUrl = async () => {
               >{{ t('connection.urlAddressLabel') }}</span
             >
             <span class="font-mono break-all line-clamp-2 select-text selection:bg-cyan-550/30">{{
-              webClientUrl || '—'
+              webClientUrl ? maskPairingToken(webClientUrl) : '—'
             }}</span>
           </div>
         </div>

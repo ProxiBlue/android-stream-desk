@@ -420,14 +420,15 @@ export const useLayoutStore = defineStore('layout', () => {
 
   const pressButton = (button: ButtonConfig) => {
     if (isAndroidClient()) {
-      connectionStore.sendOrQueue({ type: 'press', payload: button });
+      connectionStore.sendOrQueue({ type: 'press', payload: { id: button.id } });
       return;
     }
 
     if (connectionStore.status === 'connected') {
+      // Companion chỉ tin id: config thực thi được tra từ layout đã lưu.
       connectionStore.sendOrQueue({
         type: 'press',
-        payload: button,
+        payload: { id: button.id },
       });
     } else {
       try {

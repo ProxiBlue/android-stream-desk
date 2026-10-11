@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
 import { useI18n } from 'vue-i18n';
+import { maskPairingToken } from '../../lib/pairingToken';
 
 const { t } = useI18n({
   useScope: 'local',
@@ -166,7 +167,7 @@ const emit = defineEmits<{
             >{{ t('header.trustedWifiOnly') }}</label
           >
           <span class="font-mono text-xs font-bold text-slate-300 truncate">
-            {{ webClientUrl }}
+            {{ maskPairingToken(webClientUrl) }}
           </span>
         </div>
         <button
