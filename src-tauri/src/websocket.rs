@@ -259,6 +259,9 @@ impl Drop for ConnectionGuard {
 /// Runs the WS handshake and the pairing check. `Ok(None)` means the client
 /// was rejected (403 for a foreign Origin, `auth_failed` + close 4401 for a
 /// missing or wrong token) and the connection is finished.
+// The handshake callback's `Err` type is fixed by tungstenite's `Callback`
+// trait (`ErrorResponse`), so it cannot be boxed.
+#[allow(clippy::result_large_err)]
 async fn authenticate<S>(
     stream: S,
     addr: SocketAddr,
@@ -618,6 +621,8 @@ mod tests {
         addr
     }
 
+    // `WsError` is tungstenite's own error type, returned as-is to the tests.
+    #[allow(clippy::result_large_err)]
     async fn connect(
         addr: SocketAddr,
         query: &str,

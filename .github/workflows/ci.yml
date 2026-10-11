@@ -16,18 +16,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'  # pnpm test uses --experimental-strip-types (Node >= 22.6)
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - name: Install
         run: pnpm install --frozen-lockfile
 
       - name: Type check + build
         run: pnpm build
+
+      - name: Unit tests
+        run: pnpm test
 
   backend:
     name: Backend (Rust)
@@ -54,7 +57,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - name: Install and Build Frontend (needed for CLIENT_DIST include_dir)
         run: |
