@@ -28,7 +28,7 @@ pnpm test                     # frontend unit tests (node --experimental-strip-t
 
 Dev server runs on **fixed** port 1420 (`strictPort: true` in `vite.config.ts`) with HMR on 1421, bound to `0.0.0.0` so an Android dev build can reach the host. The WebSocket server is a **separate** port (`8089`) started by Rust in `setup()`.
 
-Tests: Rust unit tests live in `#[cfg(test)]` modules (`cargo test --manifest-path src-tauri/Cargo.toml --lib`), frontend ones are plain node assert scripts wired into `pnpm test`. No lint config or CI runner is committed. Only claim "tests pass" after actually running both.
+Tests: Rust unit tests live in `#[cfg(test)]` modules (`cargo test --manifest-path src-tauri/Cargo.toml --lib`), frontend ones are plain node assert scripts wired into `pnpm test`. CI (`.github/workflows/ci.yml`) runs `pnpm build` + `pnpm test` on Ubuntu and `cargo clippy --all-targets -D warnings` + `cargo test` on Windows; workflows pin pnpm 10 because `pnpm-workspace.yaml` uses pnpm-10-only keys. Only claim "tests pass" after actually running both.
 
 ## Architecture
 
