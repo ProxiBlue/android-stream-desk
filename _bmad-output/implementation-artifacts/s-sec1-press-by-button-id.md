@@ -1,6 +1,6 @@
 # Story 14.1 (S-SEC1): Companion phân giải press theo button id
 
-Status: ready-for-dev
+Status: review
 
 ## Bối cảnh
 
@@ -37,19 +37,19 @@ so that một client (hoặc trang web) kết nối được tới port WS khôn
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Hàm tra button (AC: 1, 3, 4)
-  - [ ] `fn find_button(layout: &Value, id: &str) -> Option<ButtonConfig>` trong `lib.rs`: duyệt `pages[].buttons` rồi `buttons`; deserialize từng phần tử sang `ButtonConfig`, bỏ qua phần tử lỗi.
-  - [ ] Đọc layout bằng `get_cached_layout` (đã fallback `default_layout`) — đưa thành `pub(crate)` nếu cần.
-- [ ] Task 2: Đổi handler `press` (AC: 1, 2, 3, 7)
-  - [ ] `websocket.rs`: lấy `payload.id` → `find_button` → `tauri::async_runtime::spawn(execute_logic(...))`; log giữ format `macro ok:` / `macro FAILED:` hiện có.
-  - [ ] Id không hợp lệ: gửi `WSMessage { type: "toast", payload: { kind: "error", message } }` qua `ws_sender` của connection đó.
-  - [ ] Xoá `app.listen("trigger-macro", ...)` trong `run()`.
-- [ ] Task 3: Frontend (AC: 2)
-  - [ ] `layout.ts::pressButton`: gửi `{ type: 'press', payload: { id: button.id } }` trên path WS. Path IPC giữ nguyên `button`.
-  - [ ] Sửa các assertion trong `connection.test.mjs` nếu phụ thuộc shape payload.
-- [ ] Task 4: Test (AC: 1–5)
-  - [ ] Rust unit test cho `find_button`: id ở `buttons`, id ở `pages[1]`, id không tồn tại, phần tử hỏng bị bỏ qua, layout không có `pages`.
-  - [ ] Đột biến kiểm chứng: đổi `find_button` trả `None` cố định → test phải đỏ.
+- [x] Task 1: Hàm tra button (AC: 1, 3, 4)
+  - [x] `fn find_button(layout: &Value, id: &str) -> Option<ButtonConfig>` trong `lib.rs`: duyệt `pages[].buttons` rồi `buttons`; deserialize từng phần tử sang `ButtonConfig`, bỏ qua phần tử lỗi.
+  - [x] Đọc layout bằng `get_cached_layout` (đã fallback `default_layout`) — đưa thành `pub(crate)` nếu cần.
+- [x] Task 2: Đổi handler `press` (AC: 1, 2, 3, 7)
+  - [x] `websocket.rs`: lấy `payload.id` → `find_button` → `tauri::async_runtime::spawn(execute_logic(...))`; log giữ format `macro ok:` / `macro FAILED:` hiện có.
+  - [x] Id không hợp lệ: gửi `WSMessage { type: "toast", payload: { kind: "error", message } }` qua `ws_sender` của connection đó.
+  - [x] Xoá `app.listen("trigger-macro", ...)` trong `run()`.
+- [x] Task 3: Frontend (AC: 2)
+  - [x] `layout.ts::pressButton`: gửi `{ type: 'press', payload: { id: button.id } }` trên path WS. Path IPC giữ nguyên `button`.
+  - [x] Sửa các assertion trong `connection.test.mjs` nếu phụ thuộc shape payload.
+- [x] Task 4: Test (AC: 1–5)
+  - [x] Rust unit test cho `find_button`: id ở `buttons`, id ở `pages[1]`, id không tồn tại, phần tử hỏng bị bỏ qua, layout không có `pages`.
+  - [x] Đột biến kiểm chứng: đổi `find_button` trả `None` cố định → test phải đỏ.
 - [ ] Task 5: Manual QA
   - [ ] Android client mới + client cũ (APK v1.6.x) đều bấm được.
   - [ ] Gửi tay qua `websocat` một `press` có `commandValue` lạ với id hợp lệ → lệnh đã lưu chạy, lệnh lạ không chạy.

@@ -207,20 +207,32 @@ async fn handle_connection(
                                     }
                                 }
                                 "press" => {
-                                    if let Some(payload_val) = parsed_msg.payload {
-                                        let label = payload_val
-                                            .get("label")
-                                            .and_then(|v| v.as_str())
-                                            .unwrap_or("?");
-                                        match app_handle.emit("trigger-macro", payload_val.clone()) {
-                                            Ok(()) => println!("press received from {}: {}", addr, label),
-                                            Err(e) => eprintln!(
-                                                "press received from {} but emit failed: {}: {}",
-                                                addr, label, e
-                                            ),
+                                    // Chỉ đọc `id`; config thực thi luôn lấy từ layout đã lưu.
+                                    let id = parsed_msg
+                                        .payload
+                                        .as_ref()
+                                        .and_then(|p| p.get("id"))
+                                        .and_then(|v| v.as_str());
+                                    let layout_val = get_cached_layout(&app_handle)
+                                        .unwrap_or_else(|_| default_layout());
+                                    match id.and_then(|id| crate::find_button(&layout_val, id)) {
+                                        Some(button) => {
+                                            println!("press received from {}: {}", addr, button.label);
+                                            tauri::async_runtime::spawn(crate::run_resolved_button(
+                                                app_handle.clone(),
+                                                button,
+                                            ));
                                         }
-                                    } else {
-                                        eprintln!("press from {} had no payload", addr);
+                                        None => {
+                                            let shown_id = describe_press_id(parsed_msg.payload.as_ref());
+                                            eprintln!(
+                                                "press rejected from {}: unknown button id {}",
+                                                addr, shown_id
+                                            );
+                                            if let Ok(toast_str) = serde_json::to_string(&unknown_button_toast(&shown_id)) {
+                                                let _ = ws_sender.send(Message::Text(toast_str)).await;
+                                            }
+                                        }
                                     }
                                 }
                                 "device_info" => {
@@ -284,6 +296,33 @@ fn default_layout() -> Value {
         "cols": cols,
         "buttons": buttons,
     })
+}
+
+/// Mô tả `id` trong payload `press` để log/toast khi bị từ chối: id string
+/// giữ nguyên, thiếu id → `<missing>`, kiểu khác → JSON của giá trị đó.
+fn describe_press_id(payload: Option<&Value>) -> String {
+    match payload.and_then(|p| p.get("id")) {
+        Some(Value::String(id)) => id.clone(),
+        Some(other) => other.to_string(),
+        None => "<missing>".to_string(),
+    }
+}
+
+/// Toast lỗi gửi riêng cho client đã bấm một id không có trong layout.
+fn unknown_button_toast(shown_id: &str) -> WSMessage {
+    WSMessage {
+        msg_type: "toast".to_string(),
+        payload: Some(serde_json::json!({
+            "kind": "error",
+            "message": format!("Không tìm thấy nút \"{}\" trong layout đã lưu", shown_id),
+        })),
+    }
+}
+
+/// Cho test ở `lib.rs` tra button trên đúng layout seed khi chưa có `layout.json` (AC 4).
+#[cfg(test)]
+pub(crate) fn default_layout_for_tests() -> Value {
+    default_layout()
 }
 
 #[cfg(test)]
