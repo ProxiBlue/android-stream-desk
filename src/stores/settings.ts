@@ -29,6 +29,11 @@ export const useSettingsStore = defineStore('settings', () => {
     initialKeepScreenOn = JSON.parse(localStorage.getItem('settings:keepScreenOn') ?? 'false');
   } catch (_) {}
 
+  let initialShowWhenLocked = false;
+  try {
+    initialShowWhenLocked = JSON.parse(localStorage.getItem('settings:showWhenLocked') ?? 'false');
+  } catch (_) {}
+
   let initialVibrate = true;
   try {
     initialVibrate = JSON.parse(localStorage.getItem('settings:vibrateOnClick') ?? 'true');
@@ -40,12 +45,17 @@ export const useSettingsStore = defineStore('settings', () => {
   } catch (_) {}
 
   const keepScreenOn = ref<boolean>(initialKeepScreenOn);
+  const showWhenLocked = ref<boolean>(initialShowWhenLocked);
   const vibrateOnClick = ref<boolean>(initialVibrate);
   const soundOnClick = ref<boolean>(initialSound);
   const displayFitMode = ref<DisplayFitMode>(readFitMode());
 
   watch(keepScreenOn, val => {
     localStorage.setItem('settings:keepScreenOn', JSON.stringify(val));
+  });
+
+  watch(showWhenLocked, val => {
+    localStorage.setItem('settings:showWhenLocked', JSON.stringify(val));
   });
 
   watch(vibrateOnClick, val => {
@@ -62,5 +72,5 @@ export const useSettingsStore = defineStore('settings', () => {
     } catch (_) {}
   });
 
-  return { keepScreenOn, vibrateOnClick, soundOnClick, displayFitMode };
+  return { keepScreenOn, showWhenLocked, vibrateOnClick, soundOnClick, displayFitMode };
 });

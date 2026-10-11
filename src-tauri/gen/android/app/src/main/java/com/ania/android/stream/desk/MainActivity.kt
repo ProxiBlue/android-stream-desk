@@ -9,16 +9,91 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import android.webkit.JavascriptInterface
+import android.view.WindowManager
 import android.webkit.WebView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 
 class MainActivity : TauriActivity() {
   private var wifiLock: WifiManager.WifiLock? = null
+  // The frontend flips this off when it connects to 127.0.0.1 (USB mode via
+  // `adb reverse`), where a Wi-Fi performance lock is pure battery drain.
+  @Volatile private var wifiLockWanted = true
+
+  // Screen behaviour mirrors the client's settings (Keep Screen On, Show Over
+  // Lock Screen). The WebView pushes them through AndroidScreen; they are
+  // persisted here too so a cold start (e.g. the Companion launching us over
+  // USB) applies them before the page has loaded.
+  private val screenPrefs by lazy { getSharedPreferences("screen", Context.MODE_PRIVATE) }
+
+  // USB mode: the Companion launches us with `--es pairingToken <token>`
+  // because the phone never scans a QR. The token waits here until the
+  // WebView takes it (AndroidPairing.takeToken) and stores it as server_token.
+  private val pairingPrefs by lazy { getSharedPreferences("pairing", Context.MODE_PRIVATE) }
+  private var webView: WebView? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    // When the Companion launches us over USB the phone may be dark on the
+    // desk: turn the screen on. Without Show Over Lock Screen the user still
+    // unlocks as usual.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+      setTurnScreenOn(true)
+    } else {
+      @Suppress("DEPRECATION")
+      window.addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+    }
+    applyKeepScreenOn(screenPrefs.getBoolean(PREF_KEEP_SCREEN_ON, false))
+    applyShowWhenLocked(screenPrefs.getBoolean(PREF_SHOW_WHEN_LOCKED, false))
+    stashPairingToken(intent)
+  }
+
+  // singleTask: a launch while we are running arrives here, not in onCreate.
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    if (stashPairingToken(intent)) {
+      webView?.post {
+        webView?.evaluateJavascript(
+          "window.dispatchEvent(new Event('android-pairing-token'))",
+          null
+        )
+      }
+    }
+  }
+
+  private fun stashPairingToken(intent: Intent?): Boolean {
+    val token = intent?.getStringExtra(EXTRA_PAIRING_TOKEN)?.trim().orEmpty()
+    if (token.isEmpty()) return false
+    pairingPrefs.edit().putString(PREF_PENDING_TOKEN, token).apply()
+    // Do not hand the same extra to a later recreation of the activity.
+    intent?.removeExtra(EXTRA_PAIRING_TOKEN)
+    return true
+  }
+
+  // Window-scoped: needs no WAKE_LOCK permission and releases itself the
+  // moment the user switches away.
+  private fun applyKeepScreenOn(enabled: Boolean) {
+    if (enabled) {
+      window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    } else {
+      window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+  }
+
+  // Opt-in (default off): makes the grid usable without unlocking the phone,
+  // which suits a dedicated desk deck but not a personal phone.
+  private fun applyShowWhenLocked(enabled: Boolean) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+      setShowWhenLocked(enabled)
+    } else if (enabled) {
+      @Suppress("DEPRECATION")
+      window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
+    } else {
+      @Suppress("DEPRECATION")
+      window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
+    }
   }
 
   // Expose a native orientation toggle to the WebView. Runtime orientation can't
@@ -29,6 +104,42 @@ class MainActivity : TauriActivity() {
   // ClientView.vue (-1 unspecified, 0 landscape, 1 portrait, 8 reverse-landscape).
   override fun onWebViewCreate(webView: WebView) {
     webView.addJavascriptInterface(OrientationBridge(), "AndroidOrientation")
+    webView.addJavascriptInterface(WifiLockBridge(), "AndroidWifiLock")
+    webView.addJavascriptInterface(ScreenBridge(), "AndroidScreen")
+    webView.addJavascriptInterface(PairingBridge(), "AndroidPairing")
+    this.webView = webView
+  }
+
+  inner class PairingBridge {
+    // Returns the token delivered by the USB bridge once, then forgets it.
+    @JavascriptInterface
+    fun takeToken(): String {
+      val token = pairingPrefs.getString(PREF_PENDING_TOKEN, null).orEmpty()
+      if (token.isNotEmpty()) pairingPrefs.edit().remove(PREF_PENDING_TOKEN).apply()
+      return token
+    }
+  }
+
+  inner class ScreenBridge {
+    @JavascriptInterface
+    fun setKeepScreenOn(enabled: Boolean) {
+      screenPrefs.edit().putBoolean(PREF_KEEP_SCREEN_ON, enabled).apply()
+      runOnUiThread { applyKeepScreenOn(enabled) }
+    }
+
+    @JavascriptInterface
+    fun setShowWhenLocked(enabled: Boolean) {
+      screenPrefs.edit().putBoolean(PREF_SHOW_WHEN_LOCKED, enabled).apply()
+      runOnUiThread { applyShowWhenLocked(enabled) }
+    }
+  }
+
+  inner class WifiLockBridge {
+    @JavascriptInterface
+    fun setEnabled(enabled: Boolean) {
+      wifiLockWanted = enabled
+      runOnUiThread { if (enabled) acquireWifiLock() else releaseWifiLock() }
+    }
   }
 
   inner class OrientationBridge {
@@ -53,10 +164,12 @@ class MainActivity : TauriActivity() {
 
   override fun onDestroy() {
     releaseWifiLock()
+    webView = null
     super.onDestroy()
   }
 
   private fun acquireWifiLock() {
+    if (!wifiLockWanted) return
     if (wifiLock?.isHeld == true) return
     try {
       val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager ?: return
@@ -88,7 +201,7 @@ class MainActivity : TauriActivity() {
     prefs.edit().putBoolean("battery_opt_asked", true).apply()
     Toast.makeText(
       this,
-      "Cho phép \"Không giới hạn pin\" để giữ kết nối WiFi khi dùng pin",
+      "Allow \"Unrestricted battery\" to keep the Wi-Fi connection alive on battery",
       Toast.LENGTH_LONG
     ).show()
     try {
@@ -98,5 +211,12 @@ class MainActivity : TauriActivity() {
         }
       )
     } catch (_: Exception) {}
+  }
+
+  companion object {
+    private const val PREF_KEEP_SCREEN_ON = "keep_screen_on"
+    private const val PREF_SHOW_WHEN_LOCKED = "show_when_locked"
+    private const val EXTRA_PAIRING_TOKEN = "pairingToken"
+    private const val PREF_PENDING_TOKEN = "pending_token"
   }
 }

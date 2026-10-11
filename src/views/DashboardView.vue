@@ -30,6 +30,39 @@ interface ServerConfig {
   wsPort: number;
   webEnabled: boolean;
   webPort: number;
+  /** Bind listeners to 127.0.0.1 only (USB / adb reverse mode). Default false = LAN. */
+  loopbackOnly: boolean;
+  /** Optional explicit adb path for the USB bridge; file-only setting, not edited in the UI. */
+  adbPath?: string | null;
+  /** Optional APK the USB bridge auto-installs on fresh phones; file-only setting. */
+  apkPath?: string | null;
+  /** USB bridge may install the APK on allowed phones. Default false. */
+  usbAutoInstall?: boolean;
+  /** adb serials the USB bridge serves; every other phone is ignored. */
+  usbAllowedDevices?: string[];
+}
+
+interface UsbBridgeDevice {
+  serial: string;
+  state: string;
+  reversed: boolean;
+  allowed: boolean;
+}
+
+interface UsbBridgeStatus {
+  enabled: boolean;
+  adbPath: string | null;
+  state:
+    | 'disabled'
+    | 'adb-missing'
+    | 'waiting'
+    | 'pending'
+    | 'installing'
+    | 'linked'
+    | 'unauthorized'
+    | 'error';
+  devices: UsbBridgeDevice[];
+  message: string | null;
 }
 
 interface ListenerBindError {
@@ -45,6 +78,7 @@ interface ServerInfo {
   runningWsPort: number | null;
   webEnabled: boolean;
   webPort: number;
+  loopbackOnly: boolean;
   wsReady: boolean;
   wsBindError: ListenerBindError | null;
   webReady: boolean;
@@ -55,6 +89,7 @@ interface ServerConfigDraft {
   wsPort: string;
   webEnabled: boolean;
   webPort: string;
+  loopbackOnly: boolean;
 }
 
 type InputPermissionRecommendedAction =
@@ -263,6 +298,7 @@ const runningWsPort = ref<number | null>(null);
 const wsBindError = ref<ListenerBindError | null>(null);
 const webReady = ref(false);
 const webBindError = ref<ListenerBindError | null>(null);
+const usbBridgeStatus = ref<UsbBridgeStatus | null>(null);
 const serverIp = ref<string>('—');
 // Pairing token (S-SEC2). Only ever rendered inside the QR codes and the
 // copied links — never as plain text (see maskPairingToken).
@@ -350,6 +386,29 @@ const toggleAutostart = async () => {
   }
 };
 
+// --- USB bridge policy (applied live, no relaunch) ---
+const usbPolicySaving = ref(false);
+
+const updateUsbPolicy = async (policy: { allowedDevices: string[]; autoInstall: boolean }) => {
+  if (usbPolicySaving.value || !(window as any).__TAURI_INTERNALS__) return;
+  usbPolicySaving.value = true;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    // Returns the saved server.json so later network saves (which spread
+    // savedServerConfig) don't write a stale allowlist back.
+    savedServerConfig.value = await invoke<ServerConfig>('update_usb_bridge_policy', policy);
+  } catch (err: any) {
+    console.error('Failed to update USB bridge policy:', err);
+    layoutStore.lastToast = {
+      kind: 'error',
+      message: `Could not save USB device settings: ${err?.message || err}`,
+      at: Date.now(),
+    };
+  } finally {
+    usbPolicySaving.value = false;
+  }
+};
+
 // --- Server Config ---
 const serverConfigLoaded = ref(false);
 const serverConfigSaving = ref(false);
@@ -363,12 +422,14 @@ const serverConfigDraft = ref<ServerConfigDraft>({
   wsPort: '8089',
   webEnabled: false,
   webPort: '8090',
+  loopbackOnly: false,
 });
 
 const toServerConfigDraft = (config: ServerConfig): ServerConfigDraft => ({
   wsPort: String(config.wsPort),
   webEnabled: config.webEnabled,
   webPort: String(config.webPort),
+  loopbackOnly: Boolean(config.loopbackOnly),
 });
 
 const parsePortDraft = (raw: string, label: string) => {
@@ -406,6 +467,8 @@ const hasPendingServerChanges = computed(() => {
     webEnabledSaved: persisted?.webEnabled ?? false,
     webPortDraft: serverConfigDraft.value.webPort,
     webPortSaved: persisted?.webPort ?? null,
+    loopbackOnlyDraft: serverConfigDraft.value.loopbackOnly,
+    loopbackOnlySaved: persisted?.loopbackOnly ?? false,
   });
 });
 
@@ -539,9 +602,12 @@ const buildServerConfigPayload = (): ServerConfig | null => {
   if (ws.error || web.error || ws.value === undefined || web.value === undefined) return null;
 
   return {
+    // Spread first so file-only keys (adbPath, apkPath, …) survive a UI save.
+    ...(savedServerConfig.value ?? {}),
     wsPort: ws.value,
     webEnabled: serverConfigDraft.value.webEnabled,
     webPort: web.value,
+    loopbackOnly: serverConfigDraft.value.loopbackOnly,
   };
 };
 
@@ -999,6 +1065,9 @@ onMounted(async () => {
           }
         },
       );
+      const unlistenUsbBridge = await listen<UsbBridgeStatus>('usb-bridge-status', e => {
+        usbBridgeStatus.value = e.payload;
+      });
       const unlistenDeviceInfo = await listen<{
         width: number;
         height: number;
@@ -1014,6 +1083,7 @@ onMounted(async () => {
         unlistenWebReady,
         unlistenWebError,
         unlistenActionError,
+        unlistenUsbBridge,
         unlistenDeviceInfo,
       );
 
@@ -1031,12 +1101,22 @@ onMounted(async () => {
         console.error('Failed to load pairing token:', e);
       }
       await loadServerConfig(invoke);
+      try {
+        usbBridgeStatus.value = await invoke<UsbBridgeStatus>('get_usb_bridge_status');
+      } catch (_) {
+        usbBridgeStatus.value = null;
+      }
 
       await probePermission();
       ensurePermissionPoll();
       window.addEventListener('focus', probePermission);
     } else {
-      const fallback = { wsPort: serverPort.value, webEnabled: false, webPort: 8090 };
+      const fallback = {
+        wsPort: serverPort.value,
+        webEnabled: false,
+        webPort: 8090,
+        loopbackOnly: false,
+      };
       wsReady.value = true;
       runningWsPort.value = serverPort.value;
       savedServerConfig.value = fallback;
@@ -1046,7 +1126,12 @@ onMounted(async () => {
   } catch (e) {
     console.error('Failed initialization:', e);
     if (!serverConfigLoaded.value) {
-      const fallback = { wsPort: serverPort.value, webEnabled: false, webPort: 8090 };
+      const fallback = {
+        wsPort: serverPort.value,
+        webEnabled: false,
+        webPort: 8090,
+        loopbackOnly: false,
+      };
       wsReady.value = true;
       runningWsPort.value = serverPort.value;
       savedServerConfig.value = fallback;
@@ -1188,6 +1273,8 @@ onUnmounted(() => {
       :pairing-rotating="pairingRotating"
       :pairing-error="pairingError"
       :saved-server-config="savedServerConfig"
+      :usb-bridge-status="usbBridgeStatus"
+      :usb-policy-saving="usbPolicySaving"
       :active-theme="activeTheme"
       :autostart-on="autostartOn"
       :autostart-loading="autostartLoading"
@@ -1203,6 +1290,7 @@ onUnmounted(() => {
       :is-mac="isMac"
       @set-theme="setTheme"
       @toggle-autostart="toggleAutostart"
+      @update-usb-policy="updateUsbPolicy"
       @save-network-settings-and-relaunch="saveNetworkSettingsAndRelaunch"
       @copy-web-client-url="copyWebClientUrl"
       @rotate-pairing-token="rotatePairingToken"

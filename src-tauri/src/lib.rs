@@ -14,12 +14,15 @@ pub mod accessibility;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod metrics;
 pub mod pairing;
+pub mod usb_bridge;
 pub mod webserver;
 pub mod websocket;
 
 pub const WS_PORT: u16 = 8089;
 pub const WEB_PORT: u16 = 8090;
 const SERVER_CONFIG_FILE: &str = "server.json";
+pub const LAN_BIND_HOST: &str = "0.0.0.0";
+pub const LOOPBACK_BIND_HOST: &str = "127.0.0.1";
 const MIN_USER_PORT: u16 = 1024;
 const MAX_USER_PORT: u16 = 65535;
 
@@ -29,6 +32,32 @@ pub struct ServerConfig {
     pub ws_port: u16,
     pub web_enabled: bool,
     pub web_port: u16,
+    /// When true, both listeners bind `127.0.0.1` instead of `0.0.0.0`, so
+    /// nothing on the LAN can reach the Companion. Intended for USB mode
+    /// (`adb reverse`), which delivers the phone's traffic to the PC's own
+    /// loopback interface. `#[serde(default)]` keeps older `server.json`
+    /// files (written before this field existed) loading as LAN mode.
+    #[serde(default)]
+    pub loopback_only: bool,
+    /// Optional explicit path to the `adb` executable used by the USB bridge
+    /// (only relevant when `loopback_only` is true). `None` = search `PATH`
+    /// and well-known Android SDK locations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adb_path: Option<String>,
+    /// Optional path to the Android client APK the USB bridge installs on
+    /// phones that do not have the app yet. `None` = look for
+    /// `android-stream-desk.apk` next to the executable / in the config dir.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub apk_path: Option<String>,
+    /// USB mode: install the client APK on allowed phones that lack the app.
+    /// Off by default so the Companion never installs software unasked.
+    #[serde(default)]
+    pub usb_auto_install: bool,
+    /// USB mode: adb serials of the phones the user picked as decks. The
+    /// bridge ignores every other phone (no reverse, no install, no launch),
+    /// so plugging in a personal phone to charge does nothing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub usb_allowed_devices: Vec<String>,
 }
 
 impl Default for ServerConfig {
@@ -37,6 +66,23 @@ impl Default for ServerConfig {
             ws_port: WS_PORT,
             web_enabled: false,
             web_port: WEB_PORT,
+            loopback_only: false,
+            adb_path: None,
+            apk_path: None,
+            usb_auto_install: false,
+            usb_allowed_devices: Vec::new(),
+        }
+    }
+}
+
+impl ServerConfig {
+    /// Host both TCP listeners bind to. Loopback-only mode is opt-in; the
+    /// default stays the LAN-reachable wildcard the project was built around.
+    pub fn bind_host(&self) -> &'static str {
+        if self.loopback_only {
+            LOOPBACK_BIND_HOST
+        } else {
+            LAN_BIND_HOST
         }
     }
 }
@@ -306,6 +352,7 @@ pub struct ServerInfo {
     pub running_ws_port: Option<u16>,
     pub web_enabled: bool,
     pub web_port: u16,
+    pub loopback_only: bool,
     pub ws_ready: bool,
     pub ws_bind_error: Option<ListenerBindError>,
     pub web_ready: bool,
@@ -319,6 +366,14 @@ impl ServerInfo {
         ws_status: ListenerBindStatus,
         web_status: ListenerBindStatus,
     ) -> Self {
+        // In loopback-only mode the LAN IP is meaningless (nothing can reach
+        // it), and the phone in USB mode must dial its *own* 127.0.0.1, so
+        // that is what the dashboard, QR code, and web URL should show.
+        let ip = if config.loopback_only {
+            LOOPBACK_BIND_HOST.to_string()
+        } else {
+            ip
+        };
         Self {
             ip,
             port: config.ws_port,
@@ -326,6 +381,7 @@ impl ServerInfo {
             running_ws_port: ws_status.running_port,
             web_enabled: config.web_enabled,
             web_port: config.web_port,
+            loopback_only: config.loopback_only,
             ws_ready: ws_status.ready,
             ws_bind_error: ws_status.bind_error,
             web_ready: config.web_enabled && web_status.ready,
@@ -336,6 +392,33 @@ impl ServerInfo {
             },
         }
     }
+}
+
+#[tauri::command]
+fn get_usb_bridge_status() -> usb_bridge::UsbBridgeStatus {
+    usb_bridge::current_usb_bridge_status()
+}
+
+/// Change which phones the USB bridge serves and whether it may install the
+/// APK. Persisted to server.json and applied live (no relaunch): the bridge
+/// re-evaluates the connected phones straight away. Returns the saved config
+/// so the Dashboard's copy stays in sync for later saves.
+#[tauri::command]
+async fn update_usb_bridge_policy(
+    app_handle: AppHandle,
+    allowed_devices: Vec<String>,
+    auto_install: bool,
+) -> Result<ServerConfig, String> {
+    let app_dir = app_handle
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Failed to resolve AppConfig: {}", e))?;
+    let mut config = load_server_config_from_dir(&app_dir).await;
+    config.usb_allowed_devices = usb_bridge::normalize_serials(allowed_devices);
+    config.usb_auto_install = auto_install;
+    save_server_config_to_dir(&app_dir, &config).await?;
+    usb_bridge::set_policy(usb_bridge::UsbPolicy::from_config(&config));
+    Ok(config)
 }
 
 #[tauri::command]
@@ -1347,6 +1430,8 @@ pub fn run() {
             export_layout_to_path,
             execute_button_action,
             get_server_info,
+            get_usb_bridge_status,
+            update_usb_bridge_policy,
             get_pairing_token,
             rotate_pairing_token,
             set_android_orientation,
@@ -1388,9 +1473,32 @@ pub fn run() {
                         eprintln!("Failed to load server config, using defaults: {}", e);
                         ServerConfig::default()
                     });
+                // USB plug-and-play: only meaningful when the listeners are
+                // loopback-only, i.e. the phone reaches us via `adb reverse`.
+                #[cfg(desktop)]
+                {
+                    if server_config.loopback_only {
+                        let app_handle_usb = app_handle_ws.clone();
+                        let adb_path = server_config.adb_path.clone();
+                        let apk_path = server_config.apk_path.clone();
+                        let ws_port = server_config.ws_port;
+                        let policy = usb_bridge::UsbPolicy::from_config(&server_config);
+                        tauri::async_runtime::spawn(async move {
+                            usb_bridge::run_usb_bridge(
+                                adb_path,
+                                apk_path,
+                                ws_port,
+                                policy,
+                                app_handle_usb,
+                            )
+                            .await;
+                        });
+                    }
+                }
                 if server_config.web_enabled {
                     let app_handle_web = app_handle_ws.clone();
                     let web_config = webserver::WebServerConfig {
+                        bind_host: server_config.bind_host().to_string(),
                         web_port: server_config.web_port,
                         ws_port: server_config.ws_port,
                     };
@@ -1410,6 +1518,7 @@ pub fn run() {
                     }
                 }
                 websocket::start_ws_server(
+                    server_config.bind_host(),
                     server_config.ws_port,
                     server_config.web_port,
                     app_handle_ws,
@@ -1582,6 +1691,11 @@ mod tests {
                 ws_port: 8089,
                 web_enabled: false,
                 web_port: 8090,
+                loopback_only: false,
+                adb_path: None,
+                apk_path: None,
+                usb_auto_install: false,
+                usb_allowed_devices: Vec::new(),
             }
         );
     }
@@ -1594,6 +1708,11 @@ mod tests {
                 ws_port: 18089,
                 web_enabled: true,
                 web_port: 18090,
+                loopback_only: false,
+                adb_path: None,
+                apk_path: None,
+                usb_auto_install: false,
+                usb_allowed_devices: Vec::new(),
             },
             ListenerBindStatus::ready(18089),
             ListenerBindStatus::bind_error(18090, "address already in use".to_string()),
@@ -1610,6 +1729,7 @@ mod tests {
                 "runningWsPort": 18089,
                 "webEnabled": true,
                 "webPort": 18090,
+                "loopbackOnly": false,
                 "wsReady": true,
                 "wsBindError": null,
                 "webReady": false,
@@ -1627,6 +1747,11 @@ mod tests {
             ws_port: 1023,
             web_enabled: false,
             web_port: 8090,
+            loopback_only: false,
+            adb_path: None,
+            apk_path: None,
+            usb_auto_install: false,
+            usb_allowed_devices: Vec::new(),
         };
 
         assert!(validate_server_config(&config).is_err());
@@ -1638,9 +1763,69 @@ mod tests {
             ws_port: 8089,
             web_enabled: true,
             web_port: 8089,
+            loopback_only: false,
+            adb_path: None,
+            apk_path: None,
+            usb_auto_install: false,
+            usb_allowed_devices: Vec::new(),
         };
 
         assert!(validate_server_config(&config).is_err());
+    }
+
+    #[test]
+    fn bind_host_defaults_to_lan_and_switches_to_loopback_when_opted_in() {
+        assert_eq!(ServerConfig::default().bind_host(), "0.0.0.0");
+        assert_eq!(
+            ServerConfig {
+                loopback_only: true,
+                ..ServerConfig::default()
+            }
+            .bind_host(),
+            "127.0.0.1"
+        );
+    }
+
+    #[test]
+    fn server_config_without_loopback_field_deserializes_as_lan_mode() {
+        // server.json written by a build that predates `loopbackOnly`.
+        let legacy = r#"{"wsPort":8089,"webEnabled":false,"webPort":8090}"#;
+        let config: ServerConfig = serde_json::from_str(legacy).unwrap();
+        assert!(!config.loopback_only);
+        assert_eq!(config, ServerConfig::default());
+
+        let opted_in = r#"{"wsPort":8089,"webEnabled":false,"webPort":8090,"loopbackOnly":true}"#;
+        let config: ServerConfig = serde_json::from_str(opted_in).unwrap();
+        assert!(config.loopback_only);
+        assert_eq!(config.adb_path, None);
+
+        let with_adb = r#"{"wsPort":8089,"webEnabled":false,"webPort":8090,"loopbackOnly":true,"adbPath":"/opt/adb"}"#;
+        let config: ServerConfig = serde_json::from_str(with_adb).unwrap();
+        assert_eq!(config.adb_path.as_deref(), Some("/opt/adb"));
+        // USB policy keys absent = no phone allowed, auto-install off.
+        assert!(!config.usb_auto_install);
+        assert!(config.usb_allowed_devices.is_empty());
+
+        let with_policy = r#"{"wsPort":8089,"webEnabled":false,"webPort":8090,"loopbackOnly":true,"usbAutoInstall":true,"usbAllowedDevices":["R58M12345"]}"#;
+        let config: ServerConfig = serde_json::from_str(with_policy).unwrap();
+        assert!(config.usb_auto_install);
+        assert_eq!(config.usb_allowed_devices, vec!["R58M12345".to_string()]);
+    }
+
+    #[test]
+    fn server_info_reports_loopback_ip_when_loopback_only() {
+        let info = ServerInfo::from_config_and_bind_status(
+            "192.168.1.12".to_string(),
+            &ServerConfig {
+                loopback_only: true,
+                ..ServerConfig::default()
+            },
+            ListenerBindStatus::ready(8089),
+            ListenerBindStatus::default(),
+        );
+
+        assert_eq!(info.ip, "127.0.0.1");
+        assert!(info.loopback_only);
     }
 
     #[tokio::test]
@@ -1666,6 +1851,11 @@ mod tests {
             ws_port: 18089,
             web_enabled: true,
             web_port: 18090,
+            loopback_only: false,
+            adb_path: None,
+            apk_path: None,
+            usb_auto_install: false,
+            usb_allowed_devices: Vec::new(),
         };
 
         save_server_config_to_dir(&dir, &valid).await.unwrap();
@@ -1676,6 +1866,11 @@ mod tests {
             ws_port: 18089,
             web_enabled: true,
             web_port: 18089,
+            loopback_only: false,
+            adb_path: None,
+            apk_path: None,
+            usb_auto_install: false,
+            usb_allowed_devices: Vec::new(),
         };
         assert!(save_server_config_to_dir(&dir, &invalid).await.is_err());
 

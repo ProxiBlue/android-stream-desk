@@ -7,6 +7,52 @@ import { PAIRING_TOKEN_STORAGE_KEY } from '../lib/pairingToken.ts';
 // Close code the Companion uses when the pairing token is missing or wrong.
 const PAIRING_REQUIRED_CLOSE_CODE = 4401;
 
+/** USB mode: the phone dials its own loopback and `adb reverse` carries it
+ *  over the cable. Such a target needs no network at all. */
+export const isLoopbackHost = (host: string): boolean => {
+  const h = host.trim().toLowerCase();
+  return h === '127.0.0.1' || h === 'localhost' || h === '::1' || h === '[::1]';
+};
+
+/** Tell the Android activity whether to hold a Wi-Fi performance lock. Only
+ *  worth it when the Companion is reached over Wi-Fi; on USB it just burns
+ *  battery. No-op outside the Android WebView. */
+const setAndroidWifiLock = (enabled: boolean) => {
+  try {
+    (window as any).AndroidWifiLock?.setEnabled(enabled);
+  } catch (_) {
+    /* bridge absent (desktop / browser) */
+  }
+};
+
+/** Open a throwaway WebSocket to see whether a Companion answers at `url`.
+ *  Resolves true on a completed handshake, false on error/close/timeout. */
+export const probeWebSocket = (url: string, timeoutMs = 2000): Promise<boolean> =>
+  new Promise(resolve => {
+    let done = false;
+    let ws: WebSocket | null = null;
+    const finish = (ok: boolean) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try {
+        ws?.close();
+      } catch (_) {
+        /* ignore */
+      }
+      resolve(ok);
+    };
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    try {
+      ws = new WebSocket(url);
+      ws.onopen = () => finish(true);
+      ws.onerror = () => finish(false);
+      ws.onclose = () => finish(false);
+    } catch (_) {
+      finish(false);
+    }
+  });
+
 export const useConnectionStore = defineStore('connection', () => {
   const MAX_RECONNECT_ATTEMPTS = 3;
 
@@ -26,6 +72,25 @@ export const useConnectionStore = defineStore('connection', () => {
   // Companion rejected our token (or we have none). Auto-reconnect stays off
   // until a new QR is scanned — retrying the same token cannot succeed.
   const pairingRequired = ref(false);
+
+  // USB mode: the Companion launches the app with the token as an intent
+  // extra; MainActivity keeps it until we take it (once) and store it.
+  const takeAndroidPairingToken = (): boolean => {
+    let token = '';
+    try {
+      token = ((window as any).AndroidPairing?.takeToken?.() || '').trim();
+    } catch (_) {
+      /* bridge absent (desktop / browser / older APK) */
+    }
+    if (!token) return false;
+    try {
+      localStorage.setItem(PAIRING_TOKEN_STORAGE_KEY, token);
+    } catch (_) {
+      return false;
+    }
+    pairingRequired.value = false;
+    return true;
+  };
 
   // A press must never vanish because the socket went stale while the screen
   // was off. Android freezes the WebView's timers when the display sleeps, so
@@ -51,6 +116,14 @@ export const useConnectionStore = defineStore('connection', () => {
   };
 
   if (typeof window !== 'undefined') {
+    // MainActivity fires this when a USB launch hands over a token while the
+    // app is already running (e.g. after the Companion rotated it).
+    window.addEventListener('android-pairing-token', () => {
+      if (!takeAndroidPairingToken() || status.value === 'connected') return;
+      if (ipAddress.value) connect();
+      else void tryLoopbackAutoConnect();
+    });
+
     window.addEventListener('online', () => {
       isOnline.value = true;
       // Kick a reconnect attempt immediately once link returns.
@@ -97,9 +170,14 @@ export const useConnectionStore = defineStore('connection', () => {
       return;
     }
 
-    if (!isOnline.value) {
+    const loopback = isLoopbackHost(ipAddress.value);
+    setAndroidWifiLock(!loopback);
+
+    if (!isOnline.value && !loopback) {
       // No network — skip the WS attempt entirely. `online` listener will
-      // re-trigger connect() once the link returns.
+      // re-trigger connect() once the link returns. Loopback targets (USB
+      // mode) are exempt: with Wi-Fi off the WebView reports offline, yet
+      // 127.0.0.1 still works over `adb reverse`.
       status.value = 'disconnected';
       clearReconnect();
       return;
@@ -123,6 +201,7 @@ export const useConnectionStore = defineStore('connection', () => {
     status.value = 'connecting';
 
     try {
+      takeAndroidPairingToken();
       const token = readPairingToken();
       // Without a token we still try: the Companion answers auth_failed and we
       // land in the pairing-required state instead of a generic error.
@@ -337,49 +416,52 @@ export const useConnectionStore = defineStore('connection', () => {
   const triggerAutoReconnect = () => {
     if (reconnectInterval !== null || userDisconnected || pairingRequired.value) return;
 
-    if (hasConnectedOnce.value) {
-      isReconnecting.value = true;
-      reconnectInterval = window.setInterval(() => {
-        if (userDisconnected) {
-          clearReconnect();
-          return;
-        }
-        if (reconnectAttempts.value >= MAX_RECONNECT_ATTEMPTS) {
-          clearReconnect();
-          status.value = 'error';
-          return;
-        }
-        reconnectAttempts.value += 1;
-        console.log(
-          `Silent auto-reconnect attempt ${reconnectAttempts.value} to ${formatReconnectEndpoint(ipAddress.value, port.value)} (30s interval)`,
-        );
-        connect(true);
-      }, 30000);
-      return;
-    }
+    // USB mode (loopback via `adb reverse`): the forward drops on every
+    // unplug and comes back a few seconds after replug, so retry fast and
+    // never give up — a loopback attempt costs nothing. Wi-Fi keeps the
+    // original budget: 3 quick tries before the first connection, then
+    // 3 silent 30 s tries once we have connected before.
+    const loopback = isLoopbackHost(ipAddress.value);
+    const unlimited = loopback;
+    const intervalMs = loopback ? 2000 : hasConnectedOnce.value ? 30000 : 3000;
+    const silent = hasConnectedOnce.value;
 
-    if (reconnectAttempts.value >= MAX_RECONNECT_ATTEMPTS) {
+    if (!unlimited && !silent && reconnectAttempts.value >= MAX_RECONNECT_ATTEMPTS) {
       status.value = 'error';
       isReconnecting.value = false;
       return;
     }
+
     isReconnecting.value = true;
     reconnectInterval = window.setInterval(() => {
       if (userDisconnected) {
         clearReconnect();
         return;
       }
-      if (reconnectAttempts.value >= MAX_RECONNECT_ATTEMPTS) {
+      if (!unlimited && reconnectAttempts.value >= MAX_RECONNECT_ATTEMPTS) {
         clearReconnect();
         status.value = 'error';
         return;
       }
       reconnectAttempts.value += 1;
       console.log(
-        `Auto-reconnect attempt ${reconnectAttempts.value}/${MAX_RECONNECT_ATTEMPTS} to ${formatReconnectEndpoint(ipAddress.value, port.value)}`,
+        `${silent ? 'Silent auto-reconnect' : 'Auto-reconnect'} attempt ${reconnectAttempts.value}${unlimited ? '' : `/${MAX_RECONNECT_ATTEMPTS}`} to ${formatReconnectEndpoint(ipAddress.value, port.value)} (${intervalMs / 1000}s interval)`,
       );
       connect(true);
-    }, 3000);
+    }, intervalMs);
+  };
+
+  /** First run on a phone plugged in by USB: with no saved address, see if a
+   *  Companion answers on the phone's own loopback (bridged by `adb reverse`)
+   *  and adopt it silently, so a fresh phone needs no typing at all. */
+  const tryLoopbackAutoConnect = async (): Promise<boolean> => {
+    if (ipAddress.value) return false;
+    const ok = await probeWebSocket(`ws://127.0.0.1:${port.value}`);
+    if (!ok) return false;
+    console.log('Companion found on loopback (USB mode) — auto-connecting');
+    ipAddress.value = '127.0.0.1';
+    connect();
+    return true;
   };
 
   const applyScannedEndpoint = (host: string, wsPort: string, token?: string) => {
@@ -411,6 +493,7 @@ export const useConnectionStore = defineStore('connection', () => {
     maxReconnectAttempts,
     isOnline,
     hasConnectedOnce,
+    tryLoopbackAutoConnect,
     attemptingEndpoint,
     pairingRequired,
     connect,

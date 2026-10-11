@@ -9,6 +9,8 @@ export interface PendingServerChangeInput {
   webEnabledSaved: boolean;
   webPortDraft: string;
   webPortSaved: number | null;
+  loopbackOnlyDraft: boolean;
+  loopbackOnlySaved: boolean;
 }
 
 export interface ApkEndpointInput {
@@ -42,6 +44,10 @@ export function hasPendingServerChanges(input: PendingServerChangeInput): boolea
   }
 
   if (input.webEnabledDraft !== input.webEnabledSaved) {
+    return true;
+  }
+
+  if (input.loopbackOnlyDraft !== input.loopbackOnlySaved) {
     return true;
   }
 
