@@ -1,5 +1,7 @@
 # Android Stream Desk 📱🕹
 
+🇬🇧 English | [🇻🇳 Tiếng Việt](README.vi.md)
+
 Turn your old or spare Android device into a professional wireless touch macro pad that controls your Windows PC directly. Runs entirely self-hosted on your local Wi-Fi network (LAN), requires no Internet connection, is fully private, and has extremely low latency (<30ms).
 
 A convenient, ultra-lightweight open-source alternative to expensive physical devices like the Elgato Stream Deck.

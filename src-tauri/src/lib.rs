@@ -8,11 +8,12 @@ use std::path::Path;
 use std::sync::Mutex;
 #[cfg(desktop)]
 use tauri::Emitter;
-use tauri::{AppHandle, Listener, Manager};
+use tauri::{AppHandle, Manager};
 
 pub mod accessibility;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod metrics;
+pub mod pairing;
 pub mod usb_bridge;
 pub mod webserver;
 pub mod websocket;
@@ -263,6 +264,31 @@ async fn save_server_config(app_handle: AppHandle, config: ServerConfig) -> Resu
         .map_err(|e| format!("Failed to resolve AppConfig: {}", e))?;
 
     save_server_config_to_dir(&app_dir, &config).await
+}
+
+fn app_config_dir_for(app_handle: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app_handle
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Failed to resolve AppConfig: {}", e))
+}
+
+/// Dashboard-only: the token goes into the pairing QR and the copied link.
+#[tauri::command]
+async fn get_pairing_token(app_handle: AppHandle) -> Result<String, String> {
+    if let Some(token) = pairing::current_token() {
+        return Ok(token);
+    }
+    pairing::load_or_create(&app_config_dir_for(&app_handle)?)
+}
+
+/// New token, persisted, and every open WS connection is dropped so all
+/// devices have to scan the new QR.
+#[tauri::command]
+async fn rotate_pairing_token(app_handle: AppHandle) -> Result<String, String> {
+    let token = pairing::rotate(&app_config_dir_for(&app_handle)?)?;
+    websocket::disconnect_all_clients();
+    Ok(token)
 }
 
 #[tauri::command]
@@ -795,6 +821,38 @@ fn resolve_shortcut(lnk_path: String) -> Result<String, String> {
     }
 }
 
+/// Tra button theo id trong layout đã lưu: `pages[].buttons` trước (nguồn
+/// hiện hành), rồi `buttons` (trường legacy, frontend ghi đồng bộ với
+/// `pages[0]`). Phần tử không deserialize được thành `ButtonConfig` bị bỏ qua.
+pub(crate) fn find_button(layout: &Value, id: &str) -> Option<ButtonConfig> {
+    let page_buttons = layout
+        .get("pages")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|page| page.get("buttons").and_then(Value::as_array))
+        .flatten();
+    let legacy_buttons = layout
+        .get("buttons")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten();
+    page_buttons
+        .chain(legacy_buttons)
+        .filter(|b| b.get("id").and_then(Value::as_str) == Some(id))
+        .find_map(|b| serde_json::from_value::<ButtonConfig>(b.clone()).ok())
+}
+
+/// Thực thi button đã tra được từ layout; log giữ format `macro ok:` / `macro FAILED:`.
+pub(crate) async fn run_resolved_button(app_handle: AppHandle, button: ButtonConfig) {
+    let label = button.label.clone();
+    let action = button.action_type.clone();
+    match execute_logic(app_handle, button).await {
+        Ok(()) => println!("macro ok: {} ({})", label, action),
+        Err(e) => eprintln!("macro FAILED: {} ({}): {}", label, action, e),
+    }
+}
+
 // -------------------------------------------------------------
 // Core Macro Action Execution (Enigo / Media / App Exec)
 // -------------------------------------------------------------
@@ -953,6 +1011,12 @@ fn enigo_settings() -> Settings {
     // guides the user through the UI instead.
     Settings {
         open_prompt_to_get_permissions: false,
+        // simulate_shortcut/simulate_media already release every key they press,
+        // on both the success and the failure paths, so enigo must not release
+        // them a second time when it is dropped. Note enigo 0.3 only honours
+        // this on Windows and macOS; its X11 backend releases regardless, so a
+        // duplicate modifier release is still observable on Linux.
+        release_keys_when_dropped: false,
         ..Settings::default()
     }
 }
@@ -994,6 +1058,18 @@ fn get_input_permission_diagnostics(
     accessibility::get_input_permission_diagnostics(&app_handle)
 }
 
+/// Spacing between the modifier press, the base key, and their releases.
+///
+/// enigo only applies its `linux_delay` when a keymap remap is pending, so for
+/// already-mapped keys (Ctrl, Shift, F-keys...) every XTEST event is sent with
+/// delay 0. A window manager that holds a passive grab on the combo can then
+/// evaluate the base key before the modifier state has settled and ignore the
+/// shortcut entirely — observed as roughly 1-in-4 workspace switches being
+/// silently dropped under Mutter, while `xdotool` (which spaces keys by 12ms
+/// by default) never dropped one.
+#[cfg(desktop)]
+const KEY_EVENT_SPACING: std::time::Duration = std::time::Duration::from_millis(25);
+
 #[cfg(desktop)]
 fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
     let (modifiers, base_keys) = parse_shortcut(shortcut)?;
@@ -1004,6 +1080,21 @@ fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
     let settings = enigo_settings();
     let mut enigo = Enigo::new(&settings).map_err(enigo_init_err)?;
 
+    // X11 only: the first XTEST key event emitted after a period of inactivity
+    // is not acted on by the compositor. Our first event is the modifier press,
+    // so Shift is lost, the base key arrives bare, and the shortcut silently
+    // does nothing — which is why only the *first* press after an idle gap was
+    // dropped and the retry always worked. A throwaway Shift tap absorbs it.
+    // (`xdotool --clearmodifiers` is reliable for the same reason: it emits
+    // spare events first.) Measured against Mutter: without this, the first
+    // press after a 90s idle failed 4/4; with it, 0/4.
+    #[cfg(target_os = "linux")]
+    {
+        let _ = enigo.key(Key::Shift, Direction::Press);
+        let _ = enigo.key(Key::Shift, Direction::Release);
+        std::thread::sleep(KEY_EVENT_SPACING);
+    }
+
     // Press modifiers; on first failure release ones already pressed and bail.
     for (idx, m) in modifiers.iter().enumerate() {
         if let Err(e) = enigo.key(*m, Direction::Press) {
@@ -1012,6 +1103,11 @@ fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
             }
             return Err(format!("Modifier press failed ({:?}): {}", m, e));
         }
+    }
+
+    // Let the server apply the modifier state before the base key arrives.
+    if !modifiers.is_empty() {
+        std::thread::sleep(KEY_EVENT_SPACING);
     }
 
     // Press base keys; on first failure release already pressed base keys and modifiers, then bail.
@@ -1028,6 +1124,9 @@ fn simulate_shortcut(shortcut: &str) -> Result<(), String> {
             return Err(format!("Base key press failed ({:?}): {}", b, e));
         }
     }
+
+    // Hold briefly so the combination is observed as held, not as a zero-length blip.
+    std::thread::sleep(KEY_EVENT_SPACING);
 
     // Release base keys in reverse order
     for b in base_keys.iter().rev() {
@@ -1333,6 +1432,8 @@ pub fn run() {
             get_server_info,
             get_usb_bridge_status,
             update_usb_bridge_policy,
+            get_pairing_token,
+            rotate_pairing_token,
             set_android_orientation,
             open_accessibility_settings,
             probe_input_permission,
@@ -1343,8 +1444,8 @@ pub fn run() {
             open_external_link
         ])
         .setup(|app| {
+            #[cfg(desktop)]
             let app_handle_ws = app.handle().clone();
-            let app_handle_listener = app.handle().clone();
 
             #[cfg(desktop)]
             {
@@ -1358,7 +1459,13 @@ pub fn run() {
                 }
             }
 
-            // Spawn localized tokio WS thread pool on start
+            // Spawn localized tokio WS thread pool on start. Companion only: the
+            // same binary is the Android client, which must not open a server
+            // of its own. On the phone it bound 0.0.0.0:8089 (reachable from
+            // the phone's Wi-Fi) and, in USB mode, took the port before
+            // `adb reverse` could, so the client dialled 127.0.0.1 and
+            // connected to itself.
+            #[cfg(desktop)]
             tauri::async_runtime::spawn(async move {
                 let server_config = load_server_config_for_app(&app_handle_ws)
                     .await
@@ -1399,9 +1506,21 @@ pub fn run() {
                         webserver::start_web_server(web_config, app_handle_web);
                     });
                 }
+                // The WS server must never run without a token: fall back to an
+                // in-memory one when pairing.json cannot be read or written.
+                let pairing_result = app_config_dir_for(&app_handle_ws)
+                    .and_then(|dir| pairing::load_or_create(&dir));
+                if let Err(e) = pairing_result {
+                    eprintln!("Failed to persist pairing token, using a temporary one: {}", e);
+                    if let Err(e) = pairing::install_ephemeral() {
+                        eprintln!("Failed to create pairing token, WS server not started: {}", e);
+                        return;
+                    }
+                }
                 websocket::start_ws_server(
                     server_config.bind_host(),
                     server_config.ws_port,
+                    server_config.web_port,
                     app_handle_ws,
                 )
                 .await;
@@ -1418,16 +1537,6 @@ pub fn run() {
                     metrics::metrics_loop(config_dir).await;
                 });
             }
-
-            // Proxy listen event triggered from WS client loop
-            app.listen("trigger-macro", move |event| {
-                if let Ok(button) = serde_json::from_str::<ButtonConfig>(event.payload()) {
-                    let handle = app_handle_listener.clone();
-                    tauri::async_runtime::spawn(async move {
-                        let _ = execute_logic(handle, button).await;
-                    });
-                }
-            });
 
             Ok(())
         })
@@ -1501,6 +1610,77 @@ mod tests {
             .unwrap()
             .as_nanos();
         std::env::temp_dir().join(format!("android-stream-desk-{}-{}", test_name, nonce))
+    }
+
+    fn stored_button(id: &str, command: &str) -> Value {
+        serde_json::json!({
+            "id": id,
+            "label": format!("Label {}", id),
+            "backgroundColor": "#000000",
+            "actionType": "command",
+            "commandValue": command,
+        })
+    }
+
+    #[test]
+    fn find_button_resolves_id_in_legacy_buttons() {
+        let layout = serde_json::json!({
+            "rows": 1, "cols": 2,
+            "buttons": [stored_button("a", "echo a"), stored_button("b", "echo b")],
+        });
+        let found = find_button(&layout, "b").expect("id b có trong buttons");
+        assert_eq!(found.id, "b");
+        assert_eq!(found.command_value.as_deref(), Some("echo b"));
+    }
+
+    #[test]
+    fn find_button_resolves_id_in_second_page_and_prefers_pages() {
+        let layout = serde_json::json!({
+            "rows": 1, "cols": 1,
+            "buttons": [stored_button("dup", "legacy")],
+            "pages": [
+                { "id": "page_1", "buttons": [stored_button("p1", "echo p1")] },
+                { "id": "page_2", "buttons": [stored_button("p2", "echo p2"), stored_button("dup", "from pages")] },
+            ],
+        });
+        let found = find_button(&layout, "p2").expect("id p2 có trong pages[1]");
+        assert_eq!(found.command_value.as_deref(), Some("echo p2"));
+        let dup = find_button(&layout, "dup").expect("id dup có ở cả hai nơi");
+        assert_eq!(dup.command_value.as_deref(), Some("from pages"));
+    }
+
+    #[test]
+    fn find_button_returns_none_for_unknown_id() {
+        let layout = serde_json::json!({
+            "rows": 1, "cols": 1,
+            "buttons": [stored_button("a", "echo a")],
+            "pages": [{ "id": "page_1", "buttons": [stored_button("a", "echo a")] }],
+        });
+        assert!(find_button(&layout, "missing").is_none());
+        assert!(find_button(&serde_json::json!({}), "a").is_none());
+    }
+
+    #[test]
+    fn find_button_skips_malformed_entries() {
+        let layout = serde_json::json!({
+            "rows": 1, "cols": 1,
+            "pages": [{ "id": "page_1", "buttons": [
+                42,
+                { "id": "x", "label": "thiếu actionType" },
+            ] }],
+            "buttons": [stored_button("x", "echo x")],
+        });
+        let found = find_button(&layout, "x").expect("bản hợp lệ trong buttons được dùng");
+        assert_eq!(found.command_value.as_deref(), Some("echo x"));
+    }
+
+    #[test]
+    fn find_button_works_without_pages_on_default_layout() {
+        let layout = websocket::default_layout_for_tests();
+        assert!(layout.get("pages").is_none());
+        let found = find_button(&layout, "btn_0").expect("default_layout có btn_0");
+        assert_eq!(found.action_type, "shortcut");
+        assert_eq!(found.shortcut_value.as_deref(), Some("Ctrl+Tab"));
     }
 
     #[test]

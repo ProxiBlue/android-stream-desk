@@ -35,12 +35,14 @@ Tests: Rust unit tests live in `#[cfg(test)]` modules (`cargo test --manifest-pa
 ### Two-process message flow
 
 ```
-Android Client ──ws──> Companion :8089 ──tauri::Emitter──> "trigger-macro" listener ──> execute_logic ──> enigo
+Android Client ──ws ?token=──> Companion :8089 ──press {id}──> find_button(layout.json) ──> execute_logic ──> enigo
                                             │
 Dashboard (same app) ──invoke("save_layout_config")──> writes layout.json ──> broadcast_layout_to_clients ──> all WS subscribers
 ```
 
-- WS message envelope: `{ type: "ping"|"pong"|"press"|"sync_layout"|"toast", payload }`. Defined as `WSMessage` in both `src-tauri/src/websocket.rs` and `src/types/`.
+- WS message envelope: `{ type: "ping"|"pong"|"press"|"sync_layout"|"toast"|"auth_failed", payload }`. Defined as `WSMessage` in both `src-tauri/src/websocket.rs` and `src/types/`.
+- `press` carries only `{ id }`; the Companion resolves it against the saved layout and never executes a config sent by the client. Don't reintroduce a path that runs a client-supplied `ButtonConfig` over WS.
+- Every WS client must present the pairing token (`?token=`, stored in `pairing.json`, see `src-tauri/src/pairing.rs`); a foreign `Origin` gets 403, a missing/wrong token gets `auth_failed` + close 4401.
 - New WS clients are immediately seeded with current layout via `send_current_layout` (reads `layout.json` or falls back to `default_layout`).
 - Layout writes are **atomic**: stage to `layout.json.tmp`, then rename — see `save_layout_config` in `src-tauri/src/lib.rs`. Don't replace with a direct write.
 - Broadcast channel uses a `tokio::sync::broadcast` with capacity 256; on `Lagged`, the per-client loop resyncs the full layout rather than dropping.

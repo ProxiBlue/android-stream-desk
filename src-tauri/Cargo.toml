@@ -28,6 +28,9 @@ futures-util = "0.3"
 lazy_static = "1.4"
 include_dir = "0.7"
 tiny_http = "0.12"
+getrandom = "0.3"
+base64 = "0.22"
+subtle = "2.6"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 enigo = "0.3.0"

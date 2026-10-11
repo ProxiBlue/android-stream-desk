@@ -13,7 +13,7 @@ What makes it seamless is that the Companion manages that forward itself when it
 3. Streams `adb track-devices`. The adb server pushes a new device list on every attach, detach and authorise event, so no polling and no OS hooks.
 4. The moment a USB device reaches state `device`, checks it against your allowlist (**Settings → Network → USB Phones**). A phone you have not allowed is only listed there with an **Allow** button; nothing is forwarded, installed or launched on it, so plugging in a personal phone to charge does nothing.
 5. For an allowed phone, runs `adb reverse`. When the device disappears and comes back, it does it again. If it fails, it retries every 5 seconds; if the port is already taken on the phone (an older client build that ran its own server), it stops the app once and retries. A phone that is not allowed has any forward on this port removed, including one left over from an older build or a manual `adb reverse`.
-6. Checks the phone for the client app. If it is missing, **Auto-install app** is on and an APK is available (`apkPath`, or `android-stream-desk.apk` next to the Companion, see [CONFIGURATION.md](CONFIGURATION.md)), installs it. Then wakes the screen and launches the app.
+6. Checks the phone for the client app. If it is missing, **Auto-install app** is on and an APK is available (`apkPath`, or `android-stream-desk.apk` next to the Companion, see [CONFIGURATION.md](CONFIGURATION.md)), installs it. Then wakes the screen and launches the app, passing the pairing token as an intent extra (`pairingToken`), so a phone in USB mode never has to scan the pairing QR.
 
 On the phone, the app turns the screen on when launched and on first run with no saved address probes `127.0.0.1` and adopts it if a Companion answers. So an allowed phone with USB debugging authorised for this PC needs no typing at all: plug it in and the grid appears. Two client settings (the gear on the phone) suit a dedicated desk deck: **Keep Screen On** stops the phone blanking while the grid is in the foreground, and **Show Over Lock Screen** (off by default) makes the grid usable without unlocking the phone.
 
@@ -55,6 +55,10 @@ Plug the phone in. Nothing else. With **Keep Screen On** enabled in the app's se
 **Phone connected but the app cannot connect.** Check the app's address really is `127.0.0.1` and the port matches `wsPort`. Then on the PC: `adb reverse --list` should show `tcp:8089 tcp:8089`.
 
 **Wayland: shortcuts/media keys not simulating correctly.** An `enigo` limitation unrelated to USB mode; see the main README's Linux notes.
+
+## Pairing token
+
+Every client must present the Companion's pairing token (see **Settings → Network → Reset pairing code**). In USB mode the bridge hands it over on every launch, so after a reset you only need to replug the phone (or let the bridge relaunch the app). The token is passed on the `adb` command line, so it is visible to other local users of the PC in the process list for the moment that command runs.
 
 ## Turning it off
 

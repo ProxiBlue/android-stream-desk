@@ -36,3 +36,15 @@ assert.equal(
 
 assert.equal(formatReconnectEndpoint('192.168.1.20', '18089'), '192.168.1.20:18089');
 assert.equal(formatReconnectEndpoint('', '18089'), '');
+
+// Pairing required (S-SEC2): the scan CTA shows at once, no retry budget needed.
+assert.equal(
+  shouldShowScanAgainCta({
+    isAndroidTauriApp: true,
+    status: 'error',
+    reconnectAttempts: 0,
+    maxReconnectAttempts: 3,
+    pairingRequired: true,
+  }),
+  true,
+);

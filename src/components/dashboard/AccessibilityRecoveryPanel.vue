@@ -1,6 +1,47 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
+
+const { t } = useI18n({
+  useScope: 'local',
+  messages: {
+    en: {
+      recovery: {
+        title: 'Recover Accessibility permission',
+        bundleIdentifierFallback: 'Bundle identifier',
+        copiedBundleId: 'Copied bundle id',
+        bundleIdUnknown: 'bundle id unknown',
+        resetSteps:
+          'Dev build reset steps: quit app → remove old entry → drag the correct `.app` into Accessibility → turn it back on → open app → check again.',
+        copyExecutablePath: 'Copy executablePath',
+        couldNotResolve: 'Could not resolve',
+        devBinary: 'Dev binary',
+        copyAppBundlePath: 'Copy appBundlePath',
+        openSettings: 'Open Accessibility Settings',
+        recheckTitle: 'Recheck permission',
+        recheck: 'Recheck',
+      },
+    },
+    vi: {
+      recovery: {
+        title: 'Khôi phục Accessibility permission',
+        bundleIdentifierFallback: 'Mã bundle',
+        copiedBundleId: 'Đã copy bundle id',
+        bundleIdUnknown: 'bundle id chưa rõ',
+        resetSteps:
+          'Quy trình reset dev build: quit app → xoá entry cũ → kéo đúng `.app` vào Accessibility → bật lại → mở app → kiểm tra lại.',
+        copyExecutablePath: 'Sao chép executablePath',
+        couldNotResolve: 'Không resolve được',
+        devBinary: 'Dev binary',
+        copyAppBundlePath: 'Sao chép appBundlePath',
+        openSettings: 'Mở Accessibility Settings',
+        recheckTitle: 'Kiểm tra lại quyền',
+        recheck: 'Kiểm tra lại',
+      },
+    },
+  },
+});
 
 defineProps<{
   showAccessibilityRecovery: boolean;
@@ -41,26 +82,25 @@ defineExpose({
       <div class="flex-1 flex flex-col gap-2 min-w-0">
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-[11px] font-bold text-rose-300 uppercase tracking-wider">
-            Recover Accessibility permission
+            {{ t('recovery.title') }}
           </span>
           <button
             type="button"
             class="font-mono text-[9px] text-cyan-300 hover:text-cyan-200 cursor-pointer underline decoration-dotted"
-            :title="inputPermissionDiagnostics?.bundleIdentifier || 'Bundle identifier'"
+            :title="inputPermissionDiagnostics?.bundleIdentifier || t('recovery.bundleIdentifierFallback')"
             @click="
               emit('copyPermissionDetail', inputPermissionDiagnostics?.bundleIdentifier, 'bundleId')
             "
           >
             {{
               permissionCopyHint === 'bundleId'
-                ? 'Copied bundle id'
-                : shortBundleIdentifier || 'bundle id unknown'
+                ? t('recovery.copiedBundleId')
+                : shortBundleIdentifier || t('recovery.bundleIdUnknown')
             }}
           </button>
         </div>
         <p class="text-[10px] text-slate-400 leading-relaxed">
-          {{ inputPermissionActionText }} Dev build reset steps: quit app → remove old entry → drag
-          the correct `.app` into Accessibility → turn it back on → open app → check again.
+          {{ inputPermissionActionText }} {{ t('recovery.resetSteps') }}
         </p>
         <div class="grid gap-2 xl:grid-cols-2">
           <button
@@ -70,14 +110,14 @@ defineExpose({
             @click="
               emit('copyPermissionDetail', inputPermissionDiagnostics?.executablePath, 'executable')
             "
-            title="Copy executablePath"
+            :title="t('recovery.copyExecutablePath')"
           >
             <span class="min-w-0">
               <span class="block text-[9px] uppercase tracking-widest font-bold text-slate-500">
                 executablePath
               </span>
               <span class="block font-mono text-[9px] text-slate-300 truncate select-text">
-                {{ inputPermissionDiagnostics?.executablePath || 'Could not resolve' }}
+                {{ inputPermissionDiagnostics?.executablePath || t('recovery.couldNotResolve') }}
               </span>
             </span>
             <Icon
@@ -90,7 +130,7 @@ defineExpose({
             class="cyber-inset flex min-w-0 items-center justify-between gap-2 p-2 text-left cursor-pointer"
             :disabled="!inputPermissionDiagnostics?.appBundlePath"
             @click="emit('copyPermissionDetail', inputPermissionDiagnostics?.appBundlePath, 'bundle')"
-            title="Copy appBundlePath"
+            :title="t('recovery.copyAppBundlePath')"
           >
             <span class="min-w-0">
               <span class="block text-[9px] uppercase tracking-widest font-bold text-slate-500">
@@ -100,8 +140,8 @@ defineExpose({
                 {{
                   inputPermissionDiagnostics?.appBundlePath ||
                   (inputPermissionDiagnostics?.isPackagedApp
-                    ? 'Could not resolve'
-                    : 'Dev binary')
+                    ? t('recovery.couldNotResolve')
+                    : t('recovery.devBinary'))
                 }}
               </span>
             </span>
@@ -118,15 +158,15 @@ defineExpose({
           @click="emit('openAccessibilitySettings')"
         >
           <Icon icon="lucide:external-link" class="text-xs" />
-          <span>Open Accessibility Settings</span>
+          <span>{{ t('recovery.openSettings') }}</span>
         </button>
         <button
           class="cyber-action-btn font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1.5 flex items-center gap-1.5"
           @click="emit('probePermission')"
-          title="Recheck permission"
+          :title="t('recovery.recheckTitle')"
         >
           <Icon icon="lucide:refresh-cw" class="text-xs" />
-          <span>Recheck</span>
+          <span>{{ t('recovery.recheck') }}</span>
         </button>
       </div>
     </div>

@@ -26,6 +26,12 @@ class MainActivity : TauriActivity() {
   // USB) applies them before the page has loaded.
   private val screenPrefs by lazy { getSharedPreferences("screen", Context.MODE_PRIVATE) }
 
+  // USB mode: the Companion launches us with `--es pairingToken <token>`
+  // because the phone never scans a QR. The token waits here until the
+  // WebView takes it (AndroidPairing.takeToken) and stores it as server_token.
+  private val pairingPrefs by lazy { getSharedPreferences("pairing", Context.MODE_PRIVATE) }
+  private var webView: WebView? = null
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
@@ -40,6 +46,30 @@ class MainActivity : TauriActivity() {
     }
     applyKeepScreenOn(screenPrefs.getBoolean(PREF_KEEP_SCREEN_ON, false))
     applyShowWhenLocked(screenPrefs.getBoolean(PREF_SHOW_WHEN_LOCKED, false))
+    stashPairingToken(intent)
+  }
+
+  // singleTask: a launch while we are running arrives here, not in onCreate.
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    if (stashPairingToken(intent)) {
+      webView?.post {
+        webView?.evaluateJavascript(
+          "window.dispatchEvent(new Event('android-pairing-token'))",
+          null
+        )
+      }
+    }
+  }
+
+  private fun stashPairingToken(intent: Intent?): Boolean {
+    val token = intent?.getStringExtra(EXTRA_PAIRING_TOKEN)?.trim().orEmpty()
+    if (token.isEmpty()) return false
+    pairingPrefs.edit().putString(PREF_PENDING_TOKEN, token).apply()
+    // Do not hand the same extra to a later recreation of the activity.
+    intent?.removeExtra(EXTRA_PAIRING_TOKEN)
+    return true
   }
 
   // Window-scoped: needs no WAKE_LOCK permission and releases itself the
@@ -76,6 +106,18 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(OrientationBridge(), "AndroidOrientation")
     webView.addJavascriptInterface(WifiLockBridge(), "AndroidWifiLock")
     webView.addJavascriptInterface(ScreenBridge(), "AndroidScreen")
+    webView.addJavascriptInterface(PairingBridge(), "AndroidPairing")
+    this.webView = webView
+  }
+
+  inner class PairingBridge {
+    // Returns the token delivered by the USB bridge once, then forgets it.
+    @JavascriptInterface
+    fun takeToken(): String {
+      val token = pairingPrefs.getString(PREF_PENDING_TOKEN, null).orEmpty()
+      if (token.isNotEmpty()) pairingPrefs.edit().remove(PREF_PENDING_TOKEN).apply()
+      return token
+    }
   }
 
   inner class ScreenBridge {
@@ -122,6 +164,7 @@ class MainActivity : TauriActivity() {
 
   override fun onDestroy() {
     releaseWifiLock()
+    webView = null
     super.onDestroy()
   }
 
@@ -173,5 +216,7 @@ class MainActivity : TauriActivity() {
   companion object {
     private const val PREF_KEEP_SCREEN_ON = "keep_screen_on"
     private const val PREF_SHOW_WHEN_LOCKED = "show_when_locked"
+    private const val EXTRA_PAIRING_TOKEN = "pairingToken"
+    private const val PREF_PENDING_TOKEN = "pending_token"
   }
 }

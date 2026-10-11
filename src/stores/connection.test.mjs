@@ -1,3 +1,8 @@
+// Run with: node --experimental-strip-types src/stores/connection.test.mjs
+//
+// Covers the press-delivery guarantees of the connection store: a user's
+// button press must never be silently discarded because the socket went
+// stale while the phone's screen was off.
 import assert from 'node:assert/strict';
 
 // --- minimal browser globals the store touches at import / connect time ---
@@ -17,15 +22,22 @@ globalThis.CustomEvent = class CustomEvent {
   }
 };
 
-// Fake WebSocket: `behaviour` decides what each new socket does.
-let behaviour = 'silent'; // 'open' | 'error' | 'silent'
+// Fake WebSocket: `behaviour` decides what each new socket does, and every
+// instance records what was written to it.
+let behaviour = 'silent'; // 'open' | 'error' | 'silent' | 'auth_failed' | 'close4401'
 const created = [];
 globalThis.WebSocket = class FakeWebSocket {
   static OPEN = 1;
+  // Like the real WebSocket, Vue must not wrap this in a reactive proxy —
+  // otherwise `socket.value === ws` identity checks never match.
+  get [Symbol.toStringTag]() {
+    return 'WebSocket';
+  }
   constructor(url) {
     this.url = url;
     this.readyState = 0;
     this.closed = false;
+    this.sent = [];
     created.push(this);
     queueMicrotask(() => {
       if (behaviour === 'open') {
@@ -34,83 +46,167 @@ globalThis.WebSocket = class FakeWebSocket {
       } else if (behaviour === 'error') {
         this.onerror?.();
         this.onclose?.();
+      } else if (behaviour === 'auth_failed') {
+        this.readyState = FakeWebSocket.OPEN;
+        this.onopen?.();
+        this.onmessage?.({ data: JSON.stringify({ type: 'auth_failed' }) });
+        this.onclose?.({ code: 4401 });
+      } else if (behaviour === 'close4401') {
+        this.readyState = FakeWebSocket.OPEN;
+        this.onopen?.();
+        this.onclose?.({ code: 4401 });
       }
     });
   }
-  send() {}
+  send(data) {
+    this.sent.push(data);
+  }
   close() {
     this.closed = true;
   }
 };
 
 const { createPinia, setActivePinia } = await import('pinia');
-const { isLoopbackHost, probeWebSocket, useConnectionStore } = await import('./connection.ts');
+const { useConnectionStore } = await import('./connection.ts');
 
-// ---------------------------------------------------------------- isLoopbackHost
-for (const h of ['127.0.0.1', 'localhost', 'LOCALHOST', ' 127.0.0.1 ', '::1', '[::1]']) {
-  assert.equal(isLoopbackHost(h), true, `${h} is loopback`);
-}
-for (const h of ['10.0.0.5', '192.168.1.20', '127.0.0.2', '', 'example.com']) {
-  assert.equal(isLoopbackHost(h), false, `${h} is not loopback`);
-}
+const tick = () => new Promise(r => setTimeout(r, 0));
+const types = ws => ws.sent.map(d => JSON.parse(d).type);
 
-// ---------------------------------------------------------------- probeWebSocket
+const freshStore = () => {
+  setActivePinia(createPinia());
+  const s = useConnectionStore();
+  s.isOnline = true;
+  s.ipAddress = '127.0.0.1';
+  s.port = '8089';
+  return s;
+};
+
+// ------------------------------------------------- open socket: straight out
+let store = freshStore();
 behaviour = 'open';
-assert.equal(await probeWebSocket('ws://127.0.0.1:8089', 200), true, 'open handshake → true');
-assert.equal(created.at(-1).closed, true, 'probe socket is closed after success');
-
-behaviour = 'error';
-assert.equal(await probeWebSocket('ws://127.0.0.1:8089', 200), false, 'error → false');
-
-behaviour = 'silent';
-assert.equal(await probeWebSocket('ws://127.0.0.1:8089', 30), false, 'no answer → timeout → false');
-assert.equal(created.at(-1).closed, true, 'timed-out probe socket is closed');
-
-// ---------------------------------------------------------------- online gate
-// USB mode: with the WebView reporting offline (Wi-Fi off), a loopback
-// target must still be attempted; a LAN target must not.
-setActivePinia(createPinia());
-let store = useConnectionStore();
-store.isOnline = false;
-store.port = '8089';
-
 created.length = 0;
-behaviour = 'silent';
-store.ipAddress = '10.0.0.5';
 store.connect();
-assert.equal(store.status, 'disconnected', 'LAN target offline → skipped');
-assert.equal(created.length, 0, 'LAN target offline → no socket opened');
+await tick();
+const live = created.at(-1);
+assert.equal(store.status, 'connected', 'socket opened');
+assert.equal(store.sendOrQueue({ type: 'press', payload: { id: 'a' } }), true, 'open socket → sent');
+assert.ok(types(live).includes('press'), 'press written to the socket');
 
-store.ipAddress = '127.0.0.1';
-store.connect();
-assert.equal(store.status, 'connecting', 'loopback target offline → still attempted');
-assert.equal(created.length, 1, 'loopback target offline → socket opened');
-assert.equal(created[0].url, 'ws://127.0.0.1:8089');
+// ------------------------------------------------- stale socket: queue, replay
+// This is the double-tap bug: the screen was off, the WebView's timers were
+// frozen, and the socket is no longer usable but nothing has noticed yet.
+live.readyState = 0;
+const beforeCount = created.length;
+assert.equal(
+  store.sendOrQueue({ type: 'press', payload: { id: 'queued' } }),
+  false,
+  'stale socket → reports not sent',
+);
+assert.ok(created.length > beforeCount, 'stale socket triggers an immediate reconnect');
+await tick();
+const revived = created.at(-1);
+const replayed = revived.sent.map(d => JSON.parse(d)).filter(m => m.type === 'press');
+assert.equal(replayed.length, 1, 'queued press replayed exactly once on reopen');
+assert.equal(replayed[0].payload.id, 'queued', 'the queued press is the one replayed');
 store.disconnect();
 
-// ---------------------------------------------------------------- tryLoopbackAutoConnect
-setActivePinia(createPinia());
-storage.clear();
-store = useConnectionStore();
-store.isOnline = true;
+// ------------------------------------------------- TTL: no late macro firing
+store = freshStore();
+behaviour = 'silent';
+created.length = 0;
+store.connect();
+await tick();
+created.at(-1).readyState = 0;
+store.sendOrQueue({ type: 'press', payload: { id: 'stale' } });
+const realNow = Date.now;
+Date.now = () => realNow() + 6000; // past the 5s TTL
+behaviour = 'open';
+store.connect();
+await tick();
+Date.now = realNow;
+assert.equal(
+  types(created.at(-1)).filter(t => t === 'press').length,
+  0,
+  'press older than the TTL is dropped, not fired late',
+);
+store.disconnect();
 
-store.ipAddress = '192.168.1.20';
+// ------------------------------------------------- revive() keeps a good socket
+store = freshStore();
 behaviour = 'open';
 created.length = 0;
-assert.equal(await store.tryLoopbackAutoConnect(), false, 'saved address → no probe');
-assert.equal(created.length, 0, 'saved address → no socket opened');
+store.connect();
+await tick();
+const healthy = created.at(-1);
+const countBeforeRevive = created.length;
+healthy.sent.length = 0;
+store.revive();
+assert.equal(healthy.closed, false, 'healthy socket is not torn down by revive()');
+assert.equal(created.length, countBeforeRevive, 'healthy socket: no new socket opened');
+assert.ok(types(healthy).includes('ping'), 'revive() probes the socket with a ping');
+store.disconnect();
 
-store.ipAddress = '';
-behaviour = 'error';
-assert.equal(await store.tryLoopbackAutoConnect(), false, 'no Companion on loopback → false');
-assert.equal(store.ipAddress, '', 'address stays empty when probe fails');
-
+// ------------------------------------------------- pairing token (S-SEC2)
+storage.delete('server_token');
+store = freshStore();
 behaviour = 'open';
 created.length = 0;
-assert.equal(await store.tryLoopbackAutoConnect(), true, 'Companion answers on loopback → adopted');
-assert.equal(store.ipAddress, '127.0.0.1');
-assert.equal(storage.get('server_ip'), '127.0.0.1', 'adopted address is persisted');
-assert.ok(created.some(ws => ws.url === 'ws://127.0.0.1:8089'), 'real connect opened to loopback');
+store.connect();
+await tick();
+assert.equal(created.at(-1).url, 'ws://127.0.0.1:8089', 'no token stored → plain URL');
+store.disconnect();
+
+storage.set('server_token', 'tok-A_1');
+store = freshStore();
+created.length = 0;
+store.connect();
+await tick();
+assert.equal(
+  created.at(-1).url,
+  'ws://127.0.0.1:8089/?token=tok-A_1',
+  'token from server_token is sent in the query string',
+);
+store.disconnect();
+
+for (const rejection of ['auth_failed', 'close4401']) {
+  store = freshStore();
+  behaviour = rejection;
+  created.length = 0;
+  store.connect();
+  await tick();
+  assert.equal(store.pairingRequired, true, `${rejection} → pairing required`);
+  assert.equal(store.status, 'error', `${rejection} → error status`);
+  assert.equal(store.isReconnecting, false, `${rejection} → auto-reconnect stopped`);
+  assert.equal(store.hasConnectedOnce, false, `${rejection} → back to the connect screen`);
+  const countAfterReject = created.length;
+  store.revive();
+  assert.equal(created.length, countAfterReject, `${rejection} → revive() does not redial`);
+
+  behaviour = 'open';
+  store.applyScannedEndpoint('192.168.1.30', '8089', 'tok-B_2');
+  assert.equal(store.pairingRequired, false, 'scanning a new QR resets pairing-required');
+  assert.equal(storage.get('server_token'), 'tok-B_2', 'scanned token is persisted');
+  store.connect();
+  await tick();
+  assert.equal(created.at(-1).url, 'ws://192.168.1.30:8089/?token=tok-B_2');
+  assert.equal(store.status, 'connected');
+  store.disconnect();
+}
+
+// A superseded socket closing with 4401 must not flip the new socket's state.
+store = freshStore();
+behaviour = 'silent';
+created.length = 0;
+store.connect();
+await tick();
+const superseded = created.at(-1);
+const supersededOnClose = superseded.onclose;
+behaviour = 'open';
+store.connect();
+await tick();
+supersededOnClose?.({ code: 4401 });
+assert.equal(store.pairingRequired, false, 'stale 4401 close is ignored');
+assert.equal(store.status, 'connected', 'stale 4401 close keeps the live socket');
 store.disconnect();
 
 console.log('✅ connection store tests passed');

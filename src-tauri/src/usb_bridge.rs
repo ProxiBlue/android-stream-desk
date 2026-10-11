@@ -43,6 +43,7 @@ pub const USB_BRIDGE_STATUS_EVENT: &str = "usb-bridge-status";
 /// tauri.conf.json and the package in gen/android).
 pub const APP_PACKAGE: &str = "com.ania.android.stream.desk";
 const APP_LAUNCH_COMPONENT: &str = "com.ania.android.stream.desk/.MainActivity";
+const PAIRING_TOKEN_EXTRA: &str = "pairingToken";
 /// File name looked for next to the Companion executable (and in the app
 /// config dir) when `apkPath` is not set.
 pub const DEFAULT_APK_NAME: &str = "android-stream-desk.apk";
@@ -435,12 +436,36 @@ async fn launch_app(adb: &Path, serial: &str) -> Result<(), String> {
     // activity itself also sets turnScreenOn/showWhenLocked, this is belt
     // and braces for devices that ignore those on a warm resume.
     let _ = adb_run(adb, &["-s", serial, "shell", "input", "keyevent", "KEYCODE_WAKEUP"]).await;
-    adb_run(
-        adb,
-        &["-s", serial, "shell", "am", "start", "-n", APP_LAUNCH_COMPONENT],
-    )
-    .await
-    .map(|_| ())
+    let token = crate::pairing::current_token();
+    let args = launch_args(serial, token.as_deref());
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    adb_run(adb, &args)
+        .await
+        .map(|_| ())
+        .map_err(|e| redact_token(e, token.as_deref()))
+}
+
+/// `am start` for the client. In USB mode the phone never scans a QR, so the
+/// pairing token travels as an intent extra (`pairingToken`); `MainActivity`
+/// hands it to the WebView, which stores it under `server_token`.
+fn launch_args(serial: &str, token: Option<&str>) -> Vec<String> {
+    let mut args: Vec<String> = ["-s", serial, "shell", "am", "start", "-n", APP_LAUNCH_COMPONENT]
+        .iter()
+        .map(|a| a.to_string())
+        .collect();
+    if let Some(token) = token.filter(|t| !t.is_empty()) {
+        args.extend(["--es".to_string(), PAIRING_TOKEN_EXTRA.to_string(), token.to_string()]);
+    }
+    args
+}
+
+/// `adb_run` echoes its arguments on a spawn failure; never let the token
+/// reach a log line or the Dashboard status.
+fn redact_token(message: String, token: Option<&str>) -> String {
+    match token.filter(|t| !t.is_empty()) {
+        Some(token) => message.replace(token, "<pairing token>"),
+        None => message,
+    }
 }
 
 /// Make sure the client is on the phone and in the foreground. Returns a
@@ -890,5 +915,23 @@ mod tests {
         );
         assert_eq!(summarize_state(&[device("U", "unauthorized", false, true)], false), "unauthorized");
         assert_eq!(summarize_state(&[device("D", "device", false, true)], true), "error");
+    }
+
+    #[test]
+    fn launch_args_carry_pairing_token_as_intent_extra() {
+        let args = launch_args("SERIAL1", Some("tok123"));
+        assert_eq!(&args[..7], &["-s", "SERIAL1", "shell", "am", "start", "-n", APP_LAUNCH_COMPONENT]);
+        assert_eq!(&args[7..], &["--es", "pairingToken", "tok123"]);
+        assert_eq!(launch_args("SERIAL1", None).len(), 7);
+        assert_eq!(launch_args("SERIAL1", Some("")).len(), 7);
+    }
+
+    #[test]
+    fn redact_token_hides_the_token() {
+        let msg = "failed to run adb -s X shell am start --es pairingToken tok123: boom".to_string();
+        let out = redact_token(msg, Some("tok123"));
+        assert!(!out.contains("tok123"));
+        assert!(out.contains("<pairing token>"));
+        assert_eq!(redact_token("x".to_string(), None), "x");
     }
 }

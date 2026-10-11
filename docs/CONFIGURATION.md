@@ -58,6 +58,10 @@ Only read when `loopbackOnly` and `usbAutoInstall` are `true`. When an allowed U
 
 Only read when `loopbackOnly` is `true`. Set it when `adb` is not on the Companion's `PATH` (common on Windows, or for a GUI-launched app on macOS whose `PATH` differs from your shell). Not exposed in the UI; edit the file and restart. Example: `"adbPath": "C:\\Android\\platform-tools\\adb.exe"`.
 
+## Pairing token (`pairing.json`)
+
+Not part of `server.json`: the WebSocket pairing token lives in `pairing.json` in the same folder, so copying `server.json` never copies the secret. It is created on first start; delete it (or use **Settings → Network → Reset pairing code**) to issue a new one, after which every device must pair again.
+
 ## Validation
 
 Saving (via UI or on load from disk) enforces:

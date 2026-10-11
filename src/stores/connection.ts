@@ -2,6 +2,10 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { ConnectionState, WSMessage } from '../types';
 import { formatReconnectEndpoint } from '../lib/mobileReconnectState.ts';
+import { PAIRING_TOKEN_STORAGE_KEY } from '../lib/pairingToken.ts';
+
+// Close code the Companion uses when the pairing token is missing or wrong.
+const PAIRING_REQUIRED_CLOSE_CODE = 4401;
 
 /** USB mode: the phone dials its own loopback and `adb reverse` carries it
  *  over the cable. Such a target needs no network at all. */
@@ -62,6 +66,41 @@ export const useConnectionStore = defineStore('connection', () => {
   const isOnline = ref(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const hasConnectedOnce = ref(false);
   const attemptingEndpoint = ref('');
+  // Read on every connect: the web-client fragment and the USB-mode bridge
+  // write this key outside the store.
+  const readPairingToken = () => localStorage.getItem(PAIRING_TOKEN_STORAGE_KEY) || '';
+  // Companion rejected our token (or we have none). Auto-reconnect stays off
+  // until a new QR is scanned — retrying the same token cannot succeed.
+  const pairingRequired = ref(false);
+
+  // USB mode: the Companion launches the app with the token as an intent
+  // extra; MainActivity keeps it until we take it (once) and store it.
+  const takeAndroidPairingToken = (): boolean => {
+    let token = '';
+    try {
+      token = ((window as any).AndroidPairing?.takeToken?.() || '').trim();
+    } catch (_) {
+      /* bridge absent (desktop / browser / older APK) */
+    }
+    if (!token) return false;
+    try {
+      localStorage.setItem(PAIRING_TOKEN_STORAGE_KEY, token);
+    } catch (_) {
+      return false;
+    }
+    pairingRequired.value = false;
+    return true;
+  };
+
+  // A press must never vanish because the socket went stale while the screen
+  // was off. Android freezes the WebView's timers when the display sleeps, so
+  // the heartbeat stops and the socket can be unusable for several seconds
+  // before anything notices. Presses made in that window are parked here and
+  // replayed on the next open socket.
+  const PENDING_TTL_MS = 5000;
+  const MAX_PENDING = 8;
+  let pending: { message: WSMessage; at: number }[] = [];
+  let lastReviveAt = 0;
 
   let heartbeatInterval: number | null = null;
   let reconnectInterval: number | null = null;
@@ -77,10 +116,23 @@ export const useConnectionStore = defineStore('connection', () => {
   };
 
   if (typeof window !== 'undefined') {
+    // MainActivity fires this when a USB launch hands over a token while the
+    // app is already running (e.g. after the Companion rotated it).
+    window.addEventListener('android-pairing-token', () => {
+      if (!takeAndroidPairingToken() || status.value === 'connected') return;
+      if (ipAddress.value) connect();
+      else void tryLoopbackAutoConnect();
+    });
+
     window.addEventListener('online', () => {
       isOnline.value = true;
       // Kick a reconnect attempt immediately once link returns.
-      if (!userDisconnected && status.value !== 'connected' && ipAddress.value) {
+      if (
+        !userDisconnected &&
+        !pairingRequired.value &&
+        status.value !== 'connected' &&
+        ipAddress.value
+      ) {
         connect();
       }
     });
@@ -109,6 +161,9 @@ export const useConnectionStore = defineStore('connection', () => {
     if (!fromTicker) {
       // Manual connect attempt — reset attempt counter so user gets a fresh budget.
       reconnectAttempts.value = 0;
+      // The user may have obtained a token another way (web client reload,
+      // USB bridge); a manual attempt re-enters pairing-required if not.
+      pairingRequired.value = false;
     }
     if (!ipAddress.value) {
       status.value = 'error';
@@ -146,7 +201,13 @@ export const useConnectionStore = defineStore('connection', () => {
     status.value = 'connecting';
 
     try {
-      const url = `ws://${ipAddress.value}:${port.value}`;
+      takeAndroidPairingToken();
+      const token = readPairingToken();
+      // Without a token we still try: the Companion answers auth_failed and we
+      // land in the pairing-required state instead of a generic error.
+      const url = token
+        ? `ws://${ipAddress.value}:${port.value}/?token=${encodeURIComponent(token)}`
+        : `ws://${ipAddress.value}:${port.value}`;
       console.log(`Trying WebSocket endpoint ${attemptingEndpoint.value}`);
       const ws = new WebSocket(url);
       socket.value = ws;
@@ -170,13 +231,16 @@ export const useConnectionStore = defineStore('connection', () => {
         hasConnectedOnce.value = true;
         clearReconnect();
         startHeartbeat();
+        flushPending();
       };
 
       ws.onmessage = (event) => {
         isAlive = true;
         try {
           const data: WSMessage = JSON.parse(event.data);
-          if (data.type === 'ping') {
+          if (data.type === 'auth_failed') {
+            if (socket.value === ws) enterPairingRequired(ws);
+          } else if (data.type === 'ping') {
             send({ type: 'pong' });
           } else if (data.type === 'pong') {
             // Heartbeat ack — already marked alive.
@@ -193,10 +257,14 @@ export const useConnectionStore = defineStore('connection', () => {
         status.value = 'error';
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event?: CloseEvent) => {
         clearConnectTimeout();
         if (socket.value !== ws) {
           // Stale close from a superseded socket — ignore.
+          return;
+        }
+        if (event?.code === PAIRING_REQUIRED_CLOSE_CODE) {
+          enterPairingRequired(ws);
           return;
         }
         socket.value = null;
@@ -216,6 +284,23 @@ export const useConnectionStore = defineStore('connection', () => {
     }
   };
 
+  const enterPairingRequired = (ws: WebSocket) => {
+    clearConnectTimeout();
+    clearReconnect();
+    stopHeartbeat();
+    detachSocket(ws);
+    try {
+      ws.close();
+    } catch (_) {
+      /* already closing */
+    }
+    if (socket.value === ws) socket.value = null;
+    pairingRequired.value = true;
+    // Back to the connect screen, where the scan-QR CTA lives.
+    hasConnectedOnce.value = false;
+    status.value = 'error';
+  };
+
   const disconnect = () => {
     userDisconnected = true;
     hasConnectedOnce.value = false;
@@ -230,10 +315,71 @@ export const useConnectionStore = defineStore('connection', () => {
     status.value = 'disconnected';
   };
 
-  const send = (message: WSMessage) => {
+  const send = (message: WSMessage): boolean => {
     if (socket.value && socket.value.readyState === WebSocket.OPEN) {
       socket.value.send(JSON.stringify(message));
+      return true;
     }
+    return false;
+  };
+
+  const flushPending = () => {
+    if (!pending.length) return;
+    const now = Date.now();
+    const due = pending.filter((p) => now - p.at <= PENDING_TTL_MS);
+    pending = [];
+    // Older than the TTL is dropped on purpose: replaying a minute-old press
+    // would fire a macro the user has long stopped expecting.
+    for (const p of due) send(p.message);
+  };
+
+  /**
+   * Send, or park the message and repair the link immediately. Use for user
+   * actions; `send` alone silently discards when the socket is not OPEN.
+   */
+  const sendOrQueue = (message: WSMessage): boolean => {
+    if (send(message)) return true;
+    pending.push({ message, at: Date.now() });
+    if (pending.length > MAX_PENDING) pending.shift();
+    revive();
+    return false;
+  };
+
+  /**
+   * Re-check the link now instead of waiting up to 5s for the next heartbeat
+   * tick. Called when the app returns to the foreground and when a send finds
+   * the socket unusable.
+   */
+  const revive = () => {
+    if (userDisconnected || pairingRequired.value) return;
+    const now = Date.now();
+    if (now - lastReviveAt < 1000) return; // a burst of taps must not spawn a burst of sockets
+    lastReviveAt = now;
+
+    const current = socket.value;
+    if (current && current.readyState === WebSocket.OPEN) {
+      // The socket still looks usable. The frozen timers left `isAlive` false,
+      // so the next tick would tear down a healthy connection — probe instead.
+      isAlive = true;
+      send({ type: 'ping' });
+      startHeartbeat();
+      flushPending();
+      return;
+    }
+
+    if (current) {
+      detachSocket(current);
+      try {
+        current.close();
+      } catch (_) {
+        /* already gone */
+      }
+      socket.value = null;
+    }
+    stopHeartbeat();
+    clearReconnect();
+    status.value = 'disconnected';
+    connect();
   };
 
   const startHeartbeat = () => {
@@ -268,7 +414,7 @@ export const useConnectionStore = defineStore('connection', () => {
   };
 
   const triggerAutoReconnect = () => {
-    if (reconnectInterval !== null || userDisconnected) return;
+    if (reconnectInterval !== null || userDisconnected || pairingRequired.value) return;
 
     // USB mode (loopback via `adb reverse`): the forward drops on every
     // unplug and comes back a few seconds after replug, so retry fast and
@@ -318,7 +464,7 @@ export const useConnectionStore = defineStore('connection', () => {
     return true;
   };
 
-  const applyScannedEndpoint = (host: string, wsPort: string) => {
+  const applyScannedEndpoint = (host: string, wsPort: string, token?: string) => {
     clearConnectTimeout();
     clearReconnect();
     reconnectAttempts.value = 0;
@@ -327,6 +473,8 @@ export const useConnectionStore = defineStore('connection', () => {
     attemptingEndpoint.value = formatReconnectEndpoint(host, wsPort);
     localStorage.setItem('server_ip', host);
     localStorage.setItem('server_port', wsPort);
+    if (token) localStorage.setItem(PAIRING_TOKEN_STORAGE_KEY, token);
+    pairingRequired.value = false;
     userDisconnected = false;
   };
 
@@ -347,10 +495,13 @@ export const useConnectionStore = defineStore('connection', () => {
     hasConnectedOnce,
     tryLoopbackAutoConnect,
     attemptingEndpoint,
+    pairingRequired,
     connect,
     disconnect,
     applyScannedEndpoint,
     cancelReconnect,
     send,
+    sendOrQueue,
+    revive,
   };
 });

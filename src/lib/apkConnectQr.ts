@@ -1,10 +1,14 @@
-export function buildApkConnectPayload(host: string, wsPort: number): string {
-  return `android-stream-desk://connect?v=1&host=${encodeURIComponent(host)}&wsPort=${wsPort}`;
+export function buildApkConnectPayload(host: string, wsPort: number, token?: string): string {
+  const base = `android-stream-desk://connect?v=1&host=${encodeURIComponent(host)}&wsPort=${wsPort}`;
+  return token ? `${base}&token=${encodeURIComponent(token)}` : base;
 }
 
 export interface ApkConnectTarget {
   host: string;
   wsPort: string;
+  // Optional so QR codes printed before S-SEC2 still parse; connecting
+  // without it ends in the "pairing required" state.
+  token?: string;
 }
 
 export function parseApkConnectPayload(payload: string): ApkConnectTarget | null {
@@ -25,5 +29,6 @@ export function parseApkConnectPayload(payload: string): ApkConnectTarget | null
   const port = Number(wsPort);
   if (!Number.isInteger(port) || port < 1024 || port > 65535) return null;
 
-  return { host, wsPort };
+  const token = url.searchParams.get('token')?.trim();
+  return token ? { host, wsPort, token } : { host, wsPort };
 }

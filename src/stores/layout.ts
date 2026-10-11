@@ -412,11 +412,23 @@ export const useLayoutStore = defineStore('layout', () => {
     });
   }
 
+  // The Android client can only ever reach the Companion over the socket, so
+  // it must queue rather than fall through to the local-execution branch
+  // below (which is meaningless on a phone and silently swallowed the press).
+  const isAndroidClient = () =>
+    typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+
   const pressButton = (button: ButtonConfig) => {
+    if (isAndroidClient()) {
+      connectionStore.sendOrQueue({ type: 'press', payload: { id: button.id } });
+      return;
+    }
+
     if (connectionStore.status === 'connected') {
-      connectionStore.send({
+      // Companion chỉ tin id: config thực thi được tra từ layout đã lưu.
+      connectionStore.sendOrQueue({
         type: 'press',
-        payload: button,
+        payload: { id: button.id },
       });
     } else {
       try {

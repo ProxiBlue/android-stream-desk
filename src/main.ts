@@ -3,6 +3,8 @@ import { createPinia } from 'pinia';
 import { createRouter, createWebHashHistory } from 'vue-router';
 import type { RouteRecordRaw } from 'vue-router';
 import { initOfflineIcons } from './icons-bundle';
+import { i18n } from './i18n';
+import { consumeHashToken } from './lib/pairingToken';
 
 // Initialize pre-bundled offline icons
 initOfflineIcons();
@@ -22,6 +24,12 @@ try {
 // Components & Views imports
 import App from './App.vue';
 import ClientView from './views/ClientView.vue';
+
+// Web client link carries the pairing token as `#token=...`. Store it and
+// strip it from the address bar before the hash router reads the location.
+try {
+  consumeHashToken(window);
+} catch (_) {}
 
 // Setup Routing
 const isClientOnlyBuild = import.meta.env.MODE === 'client';
@@ -60,5 +68,6 @@ const pinia = createPinia();
 
 app.use(pinia);
 app.use(router);
+app.use(i18n);
 
 app.mount('#app');
