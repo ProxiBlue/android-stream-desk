@@ -8,6 +8,7 @@ import type { ThemeName } from '../../lib/themes';
 import { i18n, setLocale, type SupportedLocale } from '../../i18n';
 import ModalThemeSelector from './ModalThemeSelector.vue';
 import Input from '../ui/Input.vue';
+import { maskPairingToken } from '../../lib/pairingToken';
 
 type SettingsGroupId =
   | 'general'
@@ -27,6 +28,8 @@ const props = defineProps<{
   webReady: boolean;
   webClientUrl: string;
   webClientQrSvg: string;
+  pairingRotating: boolean;
+  pairingError: string;
   savedServerConfig: any;
   activeTheme: ThemeName;
   autostartOn: boolean;
@@ -53,6 +56,7 @@ const emit = defineEmits<{
   (e: 'toggleAutostart'): void;
   (e: 'saveNetworkSettingsAndRelaunch'): void;
   (e: 'copyWebClientUrl'): void;
+  (e: 'rotatePairingToken'): void;
   (e: 'openZoomModal', title: string, payload: string, svg: string): void;
   (e: 'openImageZoom', title: string, src: string): void;
   (e: 'openAccessibilitySettings'): void;
@@ -62,6 +66,11 @@ const emit = defineEmits<{
 }>();
 
 const updaterStore = useUpdaterStore();
+const confirmRotateOpen = ref(false);
+const confirmRotatePairing = () => {
+  confirmRotateOpen.value = false;
+  emit('rotatePairingToken');
+};
 const activeSettingsGroup = ref<SettingsGroupId>('general');
 const typographyClass = FONT_TIER_CLASS;
 
@@ -113,6 +122,16 @@ const { t } = useI18n({
         webOff: 'Web Off',
         saving: 'Saving...',
         saveAndRestart: 'Save and Restart',
+      },
+      pairing: {
+        title: 'Pairing code',
+        desc: 'Every phone and browser must scan the Companion QR once. The code lives only in the QR and the copied link.',
+        reset: 'Reset pairing code',
+        resetting: 'Resetting...',
+        confirm: 'All paired devices will be disconnected and must scan the new QR. Continue?',
+        confirmYes: 'Reset',
+        confirmNo: 'Cancel',
+        failed: 'Could not reset the pairing code: {error}',
       },
       clientQr: {
         trustedWifiOnly: 'Only enable on trusted Wi-Fi',
@@ -216,6 +235,16 @@ const { t } = useI18n({
         webOff: 'Web tắt',
         saving: 'Đang lưu...',
         saveAndRestart: 'Lưu và khởi động lại',
+      },
+      pairing: {
+        title: 'Mã ghép đôi',
+        desc: 'Mỗi điện thoại và trình duyệt cần quét QR của Companion một lần. Mã chỉ nằm trong QR và link sao chép.',
+        reset: 'Đặt lại mã ghép đôi',
+        resetting: 'Đang đặt lại...',
+        confirm: 'Mọi thiết bị đã ghép đôi sẽ bị ngắt kết nối và phải quét lại QR mới. Tiếp tục?',
+        confirmYes: 'Đặt lại',
+        confirmNo: 'Hủy',
+        failed: 'Không đặt lại được mã ghép đôi: {error}',
       },
       clientQr: {
         trustedWifiOnly: 'Chỉ bật trên Wi-Fi tin cậy',
@@ -608,6 +637,54 @@ const onSettingsScroll = (e: Event) => {
                   </button>
                 </div>
               </div>
+
+              <div class="cyber-inset p-3 flex flex-col gap-2">
+                <div class="flex items-center gap-2">
+                  <Icon icon="lucide:key-round" class="text-sm text-cyan-400" />
+                  <span class="cyber-input-label">{{ t('pairing.title') }}</span>
+                </div>
+                <p class="text-[10px] text-slate-400 leading-relaxed">{{ t('pairing.desc') }}</p>
+                <div
+                  v-if="confirmRotateOpen"
+                  role="alertdialog"
+                  class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 flex flex-col gap-2"
+                >
+                  <p class="text-[10.5px] text-amber-200 leading-relaxed">{{ t('pairing.confirm') }}</p>
+                  <div class="flex gap-2 justify-end">
+                    <button
+                      type="button"
+                      class="cyber-action-btn font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1.5"
+                      @click="confirmRotateOpen = false"
+                    >
+                      {{ t('pairing.confirmNo') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="cyber-action-btn font-bold cursor-pointer text-[10px] uppercase tracking-wider px-3 py-1.5 border-rose-500/50 text-rose-200"
+                      @click="confirmRotatePairing"
+                    >
+                      {{ t('pairing.confirmYes') }}
+                    </button>
+                  </div>
+                </div>
+                <button
+                  v-else
+                  type="button"
+                  class="cyber-action-btn w-full sm:w-fit font-bold cursor-pointer disabled:cursor-not-allowed disabled:opacity-45 text-[10px] uppercase tracking-wider px-3 py-2 flex items-center justify-center gap-1.5"
+                  :disabled="pairingRotating"
+                  @click="confirmRotateOpen = true"
+                >
+                  <Icon
+                    :icon="pairingRotating ? 'lucide:loader-circle' : 'lucide:rotate-ccw-key'"
+                    class="text-xs"
+                    :class="pairingRotating ? 'animate-spin' : ''"
+                  />
+                  {{ pairingRotating ? t('pairing.resetting') : t('pairing.reset') }}
+                </button>
+                <p v-if="pairingError" class="text-[10px] text-rose-300">
+                  {{ t('pairing.failed', { error: pairingError }) }}
+                </p>
+              </div>
             </section>
 
             <!-- ===== Group: Client & QR ===== -->
@@ -631,7 +708,7 @@ const onSettingsScroll = (e: Event) => {
                   <div
                     class="rounded-lg border border-slate-800 bg-slate-950/80 px-3 py-2.5 font-mono text-[11px] text-slate-300 shadow-inner truncate"
                   >
-                    {{ webClientUrl }}
+                    {{ maskPairingToken(webClientUrl) }}
                   </div>
                   <button
                     type="button"

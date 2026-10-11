@@ -13,6 +13,7 @@ use tauri::{AppHandle, Manager};
 pub mod accessibility;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod metrics;
+pub mod pairing;
 pub mod webserver;
 pub mod websocket;
 
@@ -217,6 +218,31 @@ async fn save_server_config(app_handle: AppHandle, config: ServerConfig) -> Resu
         .map_err(|e| format!("Failed to resolve AppConfig: {}", e))?;
 
     save_server_config_to_dir(&app_dir, &config).await
+}
+
+fn app_config_dir_for(app_handle: &AppHandle) -> Result<std::path::PathBuf, String> {
+    app_handle
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Failed to resolve AppConfig: {}", e))
+}
+
+/// Dashboard-only: the token goes into the pairing QR and the copied link.
+#[tauri::command]
+async fn get_pairing_token(app_handle: AppHandle) -> Result<String, String> {
+    if let Some(token) = pairing::current_token() {
+        return Ok(token);
+    }
+    pairing::load_or_create(&app_config_dir_for(&app_handle)?)
+}
+
+/// New token, persisted, and every open WS connection is dropped so all
+/// devices have to scan the new QR.
+#[tauri::command]
+async fn rotate_pairing_token(app_handle: AppHandle) -> Result<String, String> {
+    let token = pairing::rotate(&app_config_dir_for(&app_handle)?)?;
+    websocket::disconnect_all_clients();
+    Ok(token)
 }
 
 #[tauri::command]
@@ -1321,6 +1347,8 @@ pub fn run() {
             export_layout_to_path,
             execute_button_action,
             get_server_info,
+            get_pairing_token,
+            rotate_pairing_token,
             set_android_orientation,
             open_accessibility_settings,
             probe_input_permission,
@@ -1370,7 +1398,23 @@ pub fn run() {
                         webserver::start_web_server(web_config, app_handle_web);
                     });
                 }
-                websocket::start_ws_server(server_config.ws_port, app_handle_ws).await;
+                // The WS server must never run without a token: fall back to an
+                // in-memory one when pairing.json cannot be read or written.
+                let pairing_result = app_config_dir_for(&app_handle_ws)
+                    .and_then(|dir| pairing::load_or_create(&dir));
+                if let Err(e) = pairing_result {
+                    eprintln!("Failed to persist pairing token, using a temporary one: {}", e);
+                    if let Err(e) = pairing::install_ephemeral() {
+                        eprintln!("Failed to create pairing token, WS server not started: {}", e);
+                        return;
+                    }
+                }
+                websocket::start_ws_server(
+                    server_config.ws_port,
+                    server_config.web_port,
+                    app_handle_ws,
+                )
+                .await;
             });
 
             // Spawn metrics broadcast loop (desktop only)

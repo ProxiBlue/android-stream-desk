@@ -2,6 +2,10 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { ConnectionState, WSMessage } from '../types';
 import { formatReconnectEndpoint } from '../lib/mobileReconnectState.ts';
+import { PAIRING_TOKEN_STORAGE_KEY } from '../lib/pairingToken.ts';
+
+// Close code the Companion uses when the pairing token is missing or wrong.
+const PAIRING_REQUIRED_CLOSE_CODE = 4401;
 
 export const useConnectionStore = defineStore('connection', () => {
   const MAX_RECONNECT_ATTEMPTS = 3;
@@ -16,6 +20,12 @@ export const useConnectionStore = defineStore('connection', () => {
   const isOnline = ref(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const hasConnectedOnce = ref(false);
   const attemptingEndpoint = ref('');
+  // Read on every connect: the web-client fragment and the USB-mode bridge
+  // write this key outside the store.
+  const readPairingToken = () => localStorage.getItem(PAIRING_TOKEN_STORAGE_KEY) || '';
+  // Companion rejected our token (or we have none). Auto-reconnect stays off
+  // until a new QR is scanned — retrying the same token cannot succeed.
+  const pairingRequired = ref(false);
 
   // A press must never vanish because the socket went stale while the screen
   // was off. Android freezes the WebView's timers when the display sleeps, so
@@ -44,7 +54,12 @@ export const useConnectionStore = defineStore('connection', () => {
     window.addEventListener('online', () => {
       isOnline.value = true;
       // Kick a reconnect attempt immediately once link returns.
-      if (!userDisconnected && status.value !== 'connected' && ipAddress.value) {
+      if (
+        !userDisconnected &&
+        !pairingRequired.value &&
+        status.value !== 'connected' &&
+        ipAddress.value
+      ) {
         connect();
       }
     });
@@ -73,6 +88,9 @@ export const useConnectionStore = defineStore('connection', () => {
     if (!fromTicker) {
       // Manual connect attempt — reset attempt counter so user gets a fresh budget.
       reconnectAttempts.value = 0;
+      // The user may have obtained a token another way (web client reload,
+      // USB bridge); a manual attempt re-enters pairing-required if not.
+      pairingRequired.value = false;
     }
     if (!ipAddress.value) {
       status.value = 'error';
@@ -105,7 +123,12 @@ export const useConnectionStore = defineStore('connection', () => {
     status.value = 'connecting';
 
     try {
-      const url = `ws://${ipAddress.value}:${port.value}`;
+      const token = readPairingToken();
+      // Without a token we still try: the Companion answers auth_failed and we
+      // land in the pairing-required state instead of a generic error.
+      const url = token
+        ? `ws://${ipAddress.value}:${port.value}/?token=${encodeURIComponent(token)}`
+        : `ws://${ipAddress.value}:${port.value}`;
       console.log(`Trying WebSocket endpoint ${attemptingEndpoint.value}`);
       const ws = new WebSocket(url);
       socket.value = ws;
@@ -136,7 +159,9 @@ export const useConnectionStore = defineStore('connection', () => {
         isAlive = true;
         try {
           const data: WSMessage = JSON.parse(event.data);
-          if (data.type === 'ping') {
+          if (data.type === 'auth_failed') {
+            if (socket.value === ws) enterPairingRequired(ws);
+          } else if (data.type === 'ping') {
             send({ type: 'pong' });
           } else if (data.type === 'pong') {
             // Heartbeat ack — already marked alive.
@@ -153,10 +178,14 @@ export const useConnectionStore = defineStore('connection', () => {
         status.value = 'error';
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event?: CloseEvent) => {
         clearConnectTimeout();
         if (socket.value !== ws) {
           // Stale close from a superseded socket — ignore.
+          return;
+        }
+        if (event?.code === PAIRING_REQUIRED_CLOSE_CODE) {
+          enterPairingRequired(ws);
           return;
         }
         socket.value = null;
@@ -174,6 +203,23 @@ export const useConnectionStore = defineStore('connection', () => {
         triggerAutoReconnect();
       }
     }
+  };
+
+  const enterPairingRequired = (ws: WebSocket) => {
+    clearConnectTimeout();
+    clearReconnect();
+    stopHeartbeat();
+    detachSocket(ws);
+    try {
+      ws.close();
+    } catch (_) {
+      /* already closing */
+    }
+    if (socket.value === ws) socket.value = null;
+    pairingRequired.value = true;
+    // Back to the connect screen, where the scan-QR CTA lives.
+    hasConnectedOnce.value = false;
+    status.value = 'error';
   };
 
   const disconnect = () => {
@@ -226,7 +272,7 @@ export const useConnectionStore = defineStore('connection', () => {
    * the socket unusable.
    */
   const revive = () => {
-    if (userDisconnected) return;
+    if (userDisconnected || pairingRequired.value) return;
     const now = Date.now();
     if (now - lastReviveAt < 1000) return; // a burst of taps must not spawn a burst of sockets
     lastReviveAt = now;
@@ -289,7 +335,7 @@ export const useConnectionStore = defineStore('connection', () => {
   };
 
   const triggerAutoReconnect = () => {
-    if (reconnectInterval !== null || userDisconnected) return;
+    if (reconnectInterval !== null || userDisconnected || pairingRequired.value) return;
 
     if (hasConnectedOnce.value) {
       isReconnecting.value = true;
@@ -336,7 +382,7 @@ export const useConnectionStore = defineStore('connection', () => {
     }, 3000);
   };
 
-  const applyScannedEndpoint = (host: string, wsPort: string) => {
+  const applyScannedEndpoint = (host: string, wsPort: string, token?: string) => {
     clearConnectTimeout();
     clearReconnect();
     reconnectAttempts.value = 0;
@@ -345,6 +391,8 @@ export const useConnectionStore = defineStore('connection', () => {
     attemptingEndpoint.value = formatReconnectEndpoint(host, wsPort);
     localStorage.setItem('server_ip', host);
     localStorage.setItem('server_port', wsPort);
+    if (token) localStorage.setItem(PAIRING_TOKEN_STORAGE_KEY, token);
+    pairingRequired.value = false;
     userDisconnected = false;
   };
 
@@ -364,6 +412,7 @@ export const useConnectionStore = defineStore('connection', () => {
     isOnline,
     hasConnectedOnce,
     attemptingEndpoint,
+    pairingRequired,
     connect,
     disconnect,
     applyScannedEndpoint,

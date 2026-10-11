@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import { Icon } from '@iconify/vue';
+import { maskPairingToken } from '../../lib/pairingToken';
 
 const { t } = useI18n({
   useScope: 'local',
@@ -118,7 +119,7 @@ const emit = defineEmits<{
           <div
             class="rounded-lg border border-slate-800 bg-slate-950/70 px-3 py-2 font-mono text-[10.5px] text-slate-350 shadow-inner break-all max-h-24 overflow-y-auto selection:bg-cyan-550/30 select-text"
           >
-            {{ zoomModalPayload }}
+            {{ maskPairingToken(zoomModalPayload) }}
           </div>
         </div>
       </div>

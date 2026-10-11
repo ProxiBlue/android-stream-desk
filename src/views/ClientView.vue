@@ -50,6 +50,10 @@ const { t } = useI18n({
           scanAgain: 'Scan QR Again',
           scanFromCompanion: 'Scan QR from Companion',
         },
+        pairing: {
+          title: 'Pairing required — scan the QR on Companion',
+          hint: 'Companion rejected this device\'s pairing code. Scan the new QR (or open the new Web Client link) to reconnect.',
+        },
         offline: {
           title: 'LAN network disconnected',
           hint: 'Turn on Wi-Fi and join the same LAN as Companion.',
@@ -120,6 +124,10 @@ const { t } = useI18n({
           scanning: 'Đang quét...',
           scanAgain: 'Quét QR lại',
           scanFromCompanion: 'Quét QR từ Companion',
+        },
+        pairing: {
+          title: 'Cần ghép đôi lại — quét QR trên Companion',
+          hint: 'Companion đã từ chối mã ghép đôi của thiết bị này. Quét QR mới (hoặc mở lại link Web Client) để kết nối.',
         },
         offline: {
           title: 'Mất kết nối mạng LAN',
@@ -216,6 +224,7 @@ const showScanAgainCta = computed(() =>
     status: connectionStore.status,
     reconnectAttempts: connectionStore.reconnectAttempts,
     maxReconnectAttempts: connectionStore.maxReconnectAttempts,
+    pairingRequired: connectionStore.pairingRequired,
   }),
 );
 
@@ -397,7 +406,7 @@ const scanCompanionQr = async () => {
     }
 
     scanStatus.value = 'success';
-    connectionStore.applyScannedEndpoint(target.host, target.wsPort);
+    connectionStore.applyScannedEndpoint(target.host, target.wsPort, target.token);
     scannedEndpointLabel.value = connectionStore.attemptingEndpoint;
     isSubmitted.value = false;
     showToast(t('client.scan.connectingToEndpoint', { endpoint: connectionStore.attemptingEndpoint }));
@@ -635,6 +644,18 @@ onUnmounted(() => {
         <div class="flex flex-col leading-tight">
           <span class="font-bold">{{ t('client.offline.title') }}</span>
           <span class="opacity-90 mt-0.5">{{ t('client.offline.hint') }}</span>
+        </div>
+      </div>
+
+      <!-- Pairing required: token missing or rejected, auto-reconnect is off -->
+      <div
+        v-else-if="connectionStore.pairingRequired"
+        class="mb-6 w-full max-w-sm bg-amber-600/90 text-white px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold flex items-center gap-3 border border-amber-500/20"
+      >
+        <Icon icon="mdi:shield-key" class="text-xl" />
+        <div class="flex flex-col leading-tight flex-1">
+          <span class="font-bold">{{ t('client.pairing.title') }}</span>
+          <span class="opacity-90 mt-0.5">{{ t('client.pairing.hint') }}</span>
         </div>
       </div>
 

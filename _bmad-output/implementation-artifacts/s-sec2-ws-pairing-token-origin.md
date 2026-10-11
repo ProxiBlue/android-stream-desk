@@ -1,6 +1,6 @@
 # Story 14.2 (S-SEC2): Xác thực client WS bằng pairing token + kiểm tra Origin
 
-Status: ready-for-dev
+Status: review
 
 ## Bối cảnh
 
@@ -51,29 +51,29 @@ so that máy khác trong LAN hoặc một trang web độc hại không điều 
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Token store (AC: 1, 8)
-  - [ ] Module `src-tauri/src/pairing.rs`: `load_or_create(config_dir)`, `rotate(config_dir)`, `verify(candidate) -> bool` (constant-time, ví dụ crate `subtle` hoặc so sánh tự viết không short-circuit).
-  - [ ] Thêm dependency sinh số ngẫu nhiên (`getrandom` hoặc `rand`) — kiểm `cargo check` cả target Android.
-  - [ ] Command `get_pairing_token` (chỉ Dashboard dùng) và `rotate_pairing_token`.
-- [ ] Task 2: Handshake (AC: 2, 3, 4)
-  - [ ] `websocket.rs`: `accept_async` → `accept_hdr_async`; callback kiểm `Origin` (trả `ErrorResponse` 403) và ghi nhận query `token` ra ngoài callback.
-  - [ ] Sau upgrade: token sai → gửi `auth_failed`, đóng `CloseFrame { code: 4401 }`, return trước khi seed layout.
-  - [ ] Truyền `web_port` vào `start_ws_server` để dựng allowlist Origin.
-  - [ ] Tạo `ConnectionGuard` (tăng `CLIENT_COUNT`) **sau** khi token hợp lệ.
-- [ ] Task 3: Rotate ngắt kết nối (AC: 9)
-  - [ ] Thêm kênh shutdown (ví dụ `tokio::sync::watch`) mà vòng lặp per-client `select!` lắng nghe.
-- [ ] Task 4: Frontend client (AC: 5, 6, 7, 8)
-  - [ ] `apkConnectQr.ts`: build/parse `token`.
-  - [ ] Thêm `'auth_failed'` vào union `WSMessage.type` trong `src/types/index.ts`.
-  - [ ] `connection.ts`: lưu/đọc `server_token`; URL WS thêm `?token=`; xử lý `auth_failed` / `onclose` code `4401` → trạng thái `pairing-required`, dừng auto-reconnect.
-  - [ ] Web client: đọc `#token=` khi khởi động.
-- [ ] Task 5: Dashboard (AC: 5, 6, 9, 10)
-  - [ ] `networkEndpointState.ts`: `buildApkEndpointPayload` / `buildWebClientUrl` nhận token.
-  - [ ] Nút `Đặt lại mã ghép đôi` + dialog xác nhận trong `ModalSettings.vue`.
-- [ ] Task 6: Test
-  - [ ] Rust: token sinh ra đủ dài và khác nhau giữa hai lần; `verify` đúng/sai/rỗng; allowlist Origin (từng mục + `http://evil.example`, `null`, khác port); handshake callback trả 403 với Origin lạ; token sai nhận `auth_failed` + close 4401 và không nhận `sync_layout`.
-  - [ ] Node: parse QR có/không token; `buildWebClientUrl` có fragment.
-  - [ ] Đột biến kiểm chứng: cho `verify` luôn `true` → test handshake phải đỏ.
+- [x] Task 1: Token store (AC: 1, 8)
+  - [x] Module `src-tauri/src/pairing.rs`: `load_or_create(config_dir)`, `rotate(config_dir)`, `verify(candidate) -> bool` (constant-time, ví dụ crate `subtle` hoặc so sánh tự viết không short-circuit).
+  - [x] Thêm dependency sinh số ngẫu nhiên (`getrandom` hoặc `rand`) — kiểm `cargo check` cả target Android.
+  - [x] Command `get_pairing_token` (chỉ Dashboard dùng) và `rotate_pairing_token`.
+- [x] Task 2: Handshake (AC: 2, 3, 4)
+  - [x] `websocket.rs`: `accept_async` → `accept_hdr_async`; callback kiểm `Origin` (trả `ErrorResponse` 403) và ghi nhận query `token` ra ngoài callback.
+  - [x] Sau upgrade: token sai → gửi `auth_failed`, đóng `CloseFrame { code: 4401 }`, return trước khi seed layout.
+  - [x] Truyền `web_port` vào `start_ws_server` để dựng allowlist Origin.
+  - [x] Tạo `ConnectionGuard` (tăng `CLIENT_COUNT`) **sau** khi token hợp lệ.
+- [x] Task 3: Rotate ngắt kết nối (AC: 9)
+  - [x] Thêm kênh shutdown (ví dụ `tokio::sync::watch`) mà vòng lặp per-client `select!` lắng nghe.
+- [x] Task 4: Frontend client (AC: 5, 6, 7, 8)
+  - [x] `apkConnectQr.ts`: build/parse `token`.
+  - [x] Thêm `'auth_failed'` vào union `WSMessage.type` trong `src/types/index.ts`.
+  - [x] `connection.ts`: lưu/đọc `server_token`; URL WS thêm `?token=`; xử lý `auth_failed` / `onclose` code `4401` → trạng thái `pairing-required`, dừng auto-reconnect.
+  - [x] Web client: đọc `#token=` khi khởi động.
+- [x] Task 5: Dashboard (AC: 5, 6, 9, 10)
+  - [x] `networkEndpointState.ts`: `buildApkEndpointPayload` / `buildWebClientUrl` nhận token.
+  - [x] Nút `Đặt lại mã ghép đôi` + dialog xác nhận trong `ModalSettings.vue`.
+- [x] Task 6: Test
+  - [x] Rust: token sinh ra đủ dài và khác nhau giữa hai lần; `verify` đúng/sai/rỗng; allowlist Origin (từng mục + `http://evil.example`, `null`, khác port); handshake callback trả 403 với Origin lạ; token sai nhận `auth_failed` + close 4401 và không nhận `sync_layout`.
+  - [x] Node: parse QR có/không token; `buildWebClientUrl` có fragment.
+  - [x] Đột biến kiểm chứng: cho `verify` luôn `true` → test handshake phải đỏ.
 - [ ] Task 7: Manual QA
   - [ ] Android quét QR mới → kết nối; APK cũ không token → bị từ chối, hiện CTA ghép đôi lại.
   - [ ] Từ một trang HTML mở bằng trình duyệt trên PC, `new WebSocket('ws://127.0.0.1:8089/?token=<đúng>')` → vẫn bị `403` vì Origin.
