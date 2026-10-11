@@ -208,28 +208,19 @@ async fn handle_connection(
                                 }
                                 "press" => {
                                     // Chỉ đọc `id`; config thực thi luôn lấy từ layout đã lưu.
-                                    let id = parsed_msg
-                                        .payload
-                                        .as_ref()
-                                        .and_then(|p| p.get("id"))
-                                        .and_then(|v| v.as_str());
-                                    let layout_val = get_cached_layout(&app_handle)
-                                        .unwrap_or_else(|_| default_layout());
-                                    match id.and_then(|id| crate::find_button(&layout_val, id)) {
-                                        Some(button) => {
+                                    // layout.json có nhưng đọc/parse lỗi → từ chối, không rơi về default_layout.
+                                    let layout_result = get_cached_layout(&app_handle).map_err(|e| e.to_string());
+                                    match resolve_press(layout_result, parsed_msg.payload.as_ref()) {
+                                        Ok(button) => {
                                             println!("press received from {}: {}", addr, button.label);
                                             tauri::async_runtime::spawn(crate::run_resolved_button(
                                                 app_handle.clone(),
                                                 button,
                                             ));
                                         }
-                                        None => {
-                                            let shown_id = describe_press_id(parsed_msg.payload.as_ref());
-                                            eprintln!(
-                                                "press rejected from {}: unknown button id {}",
-                                                addr, shown_id
-                                            );
-                                            if let Ok(toast_str) = serde_json::to_string(&unknown_button_toast(&shown_id)) {
+                                        Err(rejection) => {
+                                            eprintln!("press rejected from {}: {}", addr, rejection.log_reason());
+                                            if let Ok(toast_str) = serde_json::to_string(&rejection.toast()) {
                                                 let _ = ws_sender.send(Message::Text(toast_str)).await;
                                             }
                                         }
@@ -308,15 +299,53 @@ fn describe_press_id(payload: Option<&Value>) -> String {
     }
 }
 
-/// Toast lỗi gửi riêng cho client đã bấm một id không có trong layout.
-fn unknown_button_toast(shown_id: &str) -> WSMessage {
-    WSMessage {
-        msg_type: "toast".to_string(),
-        payload: Some(serde_json::json!({
-            "kind": "error",
-            "message": format!("Không tìm thấy nút \"{}\" trong layout đã lưu", shown_id),
-        })),
+/// Lý do một `press` bị từ chối; không lý do nào dẫn tới thực thi.
+#[derive(Debug, PartialEq, Eq)]
+enum PressRejection {
+    /// `layout.json` tồn tại nhưng đọc/parse lỗi.
+    LayoutUnreadable(String),
+    /// Id không có trong layout, thiếu, hoặc không phải string (đã mô tả bằng `describe_press_id`).
+    UnknownId(String),
+}
+
+impl PressRejection {
+    fn log_reason(&self) -> String {
+        match self {
+            PressRejection::LayoutUnreadable(err) => format!("layout unreadable: {}", err),
+            PressRejection::UnknownId(shown_id) => format!("unknown button id {}", shown_id),
+        }
     }
+
+    /// Toast lỗi gửi riêng cho client đã bấm (không broadcast).
+    fn toast(&self) -> WSMessage {
+        let message = match self {
+            PressRejection::LayoutUnreadable(_) => {
+                "Không đọc được layout đã lưu trên Companion, nút không được thực thi".to_string()
+            }
+            PressRejection::UnknownId(shown_id) => {
+                format!("Không tìm thấy nút \"{}\" trong layout đã lưu", shown_id)
+            }
+        };
+        WSMessage {
+            msg_type: "toast".to_string(),
+            payload: Some(serde_json::json!({ "kind": "error", "message": message })),
+        }
+    }
+}
+
+/// Phân giải `press` thành button đã lưu. `layout` là kết quả của
+/// `get_cached_layout` (file không tồn tại đã được thay bằng `default_layout`);
+/// lỗi đọc/parse thì từ chối thay vì fallback.
+fn resolve_press(
+    layout: Result<Value, String>,
+    payload: Option<&Value>,
+) -> Result<crate::ButtonConfig, PressRejection> {
+    let layout = layout.map_err(PressRejection::LayoutUnreadable)?;
+    payload
+        .and_then(|p| p.get("id"))
+        .and_then(Value::as_str)
+        .and_then(|id| crate::find_button(&layout, id))
+        .ok_or_else(|| PressRejection::UnknownId(describe_press_id(payload)))
 }
 
 /// Cho test ở `lib.rs` tra button trên đúng layout seed khi chưa có `layout.json` (AC 4).
@@ -328,6 +357,43 @@ pub(crate) fn default_layout_for_tests() -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn resolve_press_rejects_when_layout_unreadable() {
+        // btn_0 có trong default_layout: nếu lỗi layout rơi về fallback thì sẽ thực thi nhầm.
+        let payload = serde_json::json!({ "id": "btn_0" });
+        let result = resolve_press(Err("expected value at line 1".to_string()), Some(&payload));
+        assert_eq!(
+            result.unwrap_err(),
+            PressRejection::LayoutUnreadable("expected value at line 1".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_press_uses_stored_layout_and_rejects_bad_ids() {
+        let layout = default_layout();
+        let ok = resolve_press(Ok(layout.clone()), Some(&serde_json::json!({ "id": "btn_1" })));
+        assert_eq!(ok.unwrap().label, "Button 2");
+        assert_eq!(
+            resolve_press(Ok(layout.clone()), Some(&serde_json::json!({ "id": "nope" }))).unwrap_err(),
+            PressRejection::UnknownId("nope".to_string())
+        );
+        assert_eq!(
+            resolve_press(Ok(layout.clone()), Some(&serde_json::json!({ "id": 7 }))).unwrap_err(),
+            PressRejection::UnknownId("7".to_string())
+        );
+        assert_eq!(
+            resolve_press(Ok(layout), None).unwrap_err(),
+            PressRejection::UnknownId("<missing>".to_string())
+        );
+    }
+
+    #[test]
+    fn press_rejection_toast_is_error_kind() {
+        let toast = PressRejection::LayoutUnreadable("boom".to_string()).toast();
+        assert_eq!(toast.msg_type, "toast");
+        assert_eq!(toast.payload.unwrap()["kind"], "error");
+    }
 
     #[test]
     fn ws_server_ready_payload_serializes_port() {
