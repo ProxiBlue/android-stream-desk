@@ -10,6 +10,12 @@ Buy me a coffee: https://ko-fi.com/ania9
 
 ---
 
+### 🎬 Video Giới Thiệu
+
+<!-- Kéo thả landing-page/public/media/promo.mp4 vào README này trên trình soạn thảo web của GitHub, rồi dán link https://github.com/user-attachments/assets/... được tạo ra thành một dòng riêng tại đây. -->
+
+▶ [Xem video giới thiệu trên landing page](https://android-stream-desk.vercel.app/)
+
 ### 📸 Ảnh Chụp Giao Diện (Screenshots)
 
 | Giao diện Companion Dashboard | Giao diện Android/Web Client |
