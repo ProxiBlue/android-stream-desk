@@ -2,6 +2,7 @@
 import { useTemplateRef } from 'vue';
 import { ChevronRight, Download, RadioTower, ShieldCheck, Sparkles, Zap } from 'lucide-vue-next';
 import { useSectionAnimation } from '@/composables/useSectionAnimation';
+import PromoVideo from '@/components/landing/PromoVideo.vue';
 import ShinyText from '@/components/landing/ShinyText.vue';
 
 defineProps<{
@@ -98,24 +99,7 @@ useSectionAnimation(sectionRef, { start: 'top 92%', stagger: 0.09 });
         class="pointer-events-none absolute -inset-x-6 -top-8 h-36 rounded-full blur-3xl opacity-30"
         :style="{ backgroundColor: `${accentColor}26` }"
       ></div>
-      <figure
-        class="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.018] shadow-[0_32px_120px_rgba(0,0,0,0.42)]"
-      >
-        <picture>
-          <source srcset="/hero-banner.jpg" type="image/jpeg" />
-          <img
-            src="/hero-banner.png"
-            width="2752"
-            height="1536"
-            alt="Android Stream Desk hoạt động trên Android, Windows, macOS và Ubuntu"
-            class="h-[220px] w-full object-cover object-center sm:h-[360px] lg:h-[470px]"
-            fetchpriority="high"
-          />
-        </picture>
-        <div
-          class="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,2,18,0)_45%,rgba(0,2,18,0.5)_100%)]"
-        ></div>
-      </figure>
+      <PromoVideo :accent-color="accentColor" />
     </div>
 
     <div

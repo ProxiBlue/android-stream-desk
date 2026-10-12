@@ -10,6 +10,12 @@ Buy me a coffee: https://ko-fi.com/ania9
 
 ---
 
+### 🎬 Promo Video
+
+<!-- Drag landing-page/public/media/promo.mp4 into this README in the GitHub web editor, then paste the generated https://github.com/user-attachments/assets/... link on its own line here. -->
+
+▶ [Watch the promo video on the landing page](https://android-stream-desk.vercel.app/)
+
 ### 📸 Screenshots
 
 | Companion Dashboard UI | Android/Web Client UI |
