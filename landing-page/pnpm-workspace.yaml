@@ -1,0 +1,5 @@
+# landing-page là dự án độc lập (Vercel Root Directory). File này chặn pnpm leo lên
+# pnpm-workspace.yaml ở gốc repo — nếu không, pnpm install ở đây không cài gì và
+# pnpm run build dùng nhầm vue-tsc/TypeScript 6 của app Tauri.
+packages:
+  - '.'
