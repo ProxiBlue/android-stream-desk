@@ -223,7 +223,9 @@ pnpm rust:build   # full pnpm tauri build → src-tauri/target/release/bundle/ (
 pnpm rust:shell   # bash inside the container
 ```
 
-The image (`docker/rust-dev/Dockerfile`, Debian bookworm + Rust stable + Tauri deps + Node 22) is built on first use with your UID/GID so build output in `src-tauri/target/` is owned by you. Cargo's registry cache persists in the `android-stream-desk-cargo-home` Docker volume. `scripts/rust-env.sh --rebuild-image` forces a rebuild.
+The image (`docker/rust-dev/Dockerfile`, Debian bookworm + Rust stable + Tauri deps + Node 22) is built on first use with your UID/GID so build output in `src-tauri/target/` is owned by you. Cargo's registry cache persists in the `android-stream-desk-cargo-home` Docker volume. `scripts/rust-env.sh --rebuild-image` forces a rebuild (needed after the Dockerfile changes).
+
+The image is always `linux/amd64`; on Apple Silicon and arm64 Linux Docker runs it under emulation, which works but is noticeably slower. The container gets its own `node_modules` (the `android-stream-desk-node-modules` volume, filled by `pnpm install --frozen-lockfile` before each `rust:build`), so the host's `node_modules` with its macOS/Windows native binaries is never used inside Linux.
 
 ### 2. Building & Packaging (Production Build)
 

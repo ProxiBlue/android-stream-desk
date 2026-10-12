@@ -24,11 +24,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Node 22 + pnpm so `pnpm tauri build` can run its beforeBuildCommand inside
 # the container too. pnpm is installed directly (corepack's shim fails to
-# fetch current pnpm releases under Node 22).
+# fetch current pnpm releases under Node 22) and pinned to the same major as
+# CI (pnpm-workspace.yaml uses pnpm-10 keys).
+#
+# The image is always built for linux/amd64 (scripts/rust-env.sh passes
+# --platform), on Apple Silicon too: the Android image layered on top needs
+# x86_64 host binaries (NDK), so the x64 Node tarball is the right one here.
+# Bump NODE_SHA256 together with NODE_VERSION, from
+# https://nodejs.org/dist/v<version>/SHASUMS256.txt (linux-x64.tar.xz line).
 ARG NODE_VERSION=22.20.0
-ARG PNPM_VERSION=12.3.4
-RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
-      | tar -xJ -C /usr/local --strip-components=1 \
+ARG NODE_SHA256=00bbd05e306ea68b6e13e17360d0e2f680b493ef95f2fea1c4296ff7437530bc
+ARG PNPM_VERSION=10.34.6
+RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" -o /tmp/node.tar.xz \
+    && echo "${NODE_SHA256}  /tmp/node.tar.xz" | sha256sum -c - \
+    && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
+    && rm /tmp/node.tar.xz \
     && npm install -g "pnpm@${PNPM_VERSION}" \
     && npm cache clean --force
 
@@ -43,6 +53,14 @@ ENV CARGO_HOME=/home/dev/.cargo \
     # AppImage tooling needs FUSE unless told to self-extract.
     APPIMAGE_EXTRACT_AND_RUN=1
 RUN mkdir -p /home/dev/.cargo && chown -R dev:"${GID}" /home/dev
+
+# Container-only node_modules: scripts/rust-env.sh mounts a named volume here,
+# over the bind-mounted repo, so pnpm inside the container never touches the
+# host's node_modules (which holds darwin/win32 native binaries on non-Linux
+# hosts). Pre-created owned by dev so the volume initialises writable. The
+# pnpm store lives inside it to keep hardlinks on one filesystem.
+RUN mkdir -p /work/node_modules && chown dev:"${GID}" /work /work/node_modules
+ENV npm_config_store_dir=/work/node_modules/.pnpm-store
 
 USER dev
 WORKDIR /work

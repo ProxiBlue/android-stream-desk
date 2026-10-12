@@ -13,11 +13,19 @@
 #
 # The repo is bind-mounted at /work, so `src-tauri/target/` and bundles land
 # on the host as usual. Cargo's registry cache is a named Docker volume.
+#
+# The image is always linux/amd64 (emulated on Apple Silicon / arm64 Linux:
+# slower, but the Android NDK only ships x86_64 host binaries anyway).
+# node_modules inside the container is a separate named volume, so `build`
+# works on macOS/Windows hosts whose own node_modules holds non-Linux native
+# binaries; `build` runs `pnpm install --frozen-lockfile` into it first.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="android-stream-desk-rust-dev"
 CARGO_VOLUME="android-stream-desk-cargo-home"
+NODE_MODULES_VOLUME="android-stream-desk-node-modules"
+PLATFORM="linux/amd64"
 
 if [[ "${1:-}" == "--rebuild-image" ]]; then
   shift
@@ -27,6 +35,7 @@ fi
 if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
   echo ">> building $IMAGE (one-time, a few minutes)"
   docker build \
+    --platform "$PLATFORM" \
     --build-arg "UID=$(id -u)" \
     --build-arg "GID=$(id -g)" \
     -t "$IMAGE" \
@@ -34,6 +43,10 @@ if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
 fi
 
 docker volume create "$CARGO_VOLUME" >/dev/null
+docker volume create "$NODE_MODULES_VOLUME" >/dev/null
+# Mount point for the node_modules volume. Created here so Docker doesn't
+# create it root-owned in the host checkout when node_modules is absent.
+mkdir -p "$ROOT/node_modules"
 
 # webserver.rs embeds ../dist-client at compile time; build it if absent.
 if [[ ! -d "$ROOT/dist-client" ]]; then
@@ -49,7 +62,9 @@ fi
 run() {
   local workdir="$1"; shift
   exec docker run --rm "${tty_args[@]}" \
+    --platform "$PLATFORM" \
     -v "$ROOT":/work \
+    -v "$NODE_MODULES_VOLUME":/work/node_modules \
     -v "$CARGO_VOLUME":/home/dev/.cargo \
     -w "$workdir" \
     "$IMAGE" "$@"
@@ -59,7 +74,7 @@ case "${1:-shell}" in
   test)   shift; run /work/src-tauri cargo test --lib "$@" ;;
   check)  shift; run /work/src-tauri cargo check "$@" ;;
   clippy) shift; run /work/src-tauri cargo clippy --all-targets "$@" ;;
-  build)  shift; run /work pnpm tauri build "$@" ;;
+  build)  shift; run /work bash -c 'pnpm install --frozen-lockfile && exec pnpm tauri build "$@"' _ "$@" ;;
   shell)  run /work/src-tauri bash ;;
   --)     shift; run /work/src-tauri "$@" ;;
   *)      echo "unknown subcommand: $1 (see header of $0)" >&2; exit 2 ;;
