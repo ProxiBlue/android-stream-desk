@@ -5,7 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "pnpm test:qr && pnpm test:typography && pnpm test:link && pnpm test:settings && pnpm test:network && pnpm test:connection && pnpm test:tap",
+    "test": "pnpm test:qr && pnpm test:typography && pnpm test:link && pnpm test:settings && pnpm test:network && pnpm test:connection",
+    "rust:test": "scripts/rust-env.sh test",
+    "rust:check": "scripts/rust-env.sh check",
+    "rust:build": "scripts/rust-env.sh build",
+    "rust:shell": "scripts/rust-env.sh shell",
     "test:connection": "node --experimental-strip-types src/stores/connection.test.mjs && node --experimental-strip-types src/stores/connection.usb.test.mjs && node --experimental-strip-types src/lib/mobileReconnectState.test.mjs",
     "test:tap": "node --experimental-strip-types src/lib/tapTracker.test.mjs",
     "test:network": "node --experimental-strip-types src/lib/networkEndpointState.test.mjs",
